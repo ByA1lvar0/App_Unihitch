@@ -1,0 +1,55 @@
+========================================
+INSTRUCCIONES PARA EJECUTAR SQL
+========================================
+
+OPCION 1 - USAR PGADMIN (MAS FACIL):
+========================================
+
+1. Abre PGAdmin (busca "pgAdmin" en el menú de inicio)
+
+2. En el panel izquierdo, expande:
+   Servers > PostgreSQL 18 > Databases
+
+3. Conecta a la base de datos "unihitch_db" (click derecho > Refresh si no aparece)
+
+4. Una vez dentro de unihitch_db, click derecho en la base de datos > Query Tool
+
+5. Abre el archivo database_setup.sql 
+   (Está en: C:\Users\Valentino\Downloads\unihitch_backend\database_setup.sql)
+
+6. Copia TODO el contenido del archivo database_setup.sql
+
+7. Pégalo en el Query Tool de pgAdmin
+
+8. Click en el botón "Execute" (▶) o presiona F5
+
+9. Deberías ver mensajes como "CREATE TABLE", "INSERT INTO", etc.
+
+10. ¡Listo! Ya tienes todas las tablas y universidades creadas
+
+
+========================================
+OPCION 2 - USAR LINEA DE COMANDOS:
+========================================
+
+Abre CMD y ejecuta:
+
+cd "C:\Program Files\PostgreSQL\18\bin"
+
+psql.exe -U postgres -d unihitch_db -f "C:\Users\Valentino\Downloads\unihitch_backend\database_setup.sql"
+
+Te pedirá la contraseña de PostgreSQL cuando lo ejecutes.
+
+
+========================================
+VERIFICAR QUE FUNCIONO:
+========================================
+
+Después de ejecutar, puedes verificar en pgAdmin:
+
+1. Click derecho en unihitch_db > View/Edit Data > All Rows
+2. Verás las tablas creadas
+3. Para ver universidades: Schemas > public > Tables > universidad > View Data
+
+========================================
+
