@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import '../services/api_service.dart';
+import 'trip_history_screen.dart';
+import 'statistics_screen.dart';
+import 'referral_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -30,17 +33,43 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Funcionalidad de notificaciones')),
+                const SnackBar(
+                    content: Text('Funcionalidad de notificaciones')),
               );
             },
           ),
           ListTile(
-            leading: const Icon(Icons.directions_car, color: Colors.red),
-            title: const Text('Preferencias Viaje'),
+            leading: const Icon(Icons.history, color: Colors.blue),
+            title: const Text('Historial de Viajes'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Funcionalidad de preferencias')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const TripHistoryScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.bar_chart, color: Colors.green),
+            title: const Text('Estadísticas'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const StatisticsScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.card_giftcard, color: Colors.purple),
+            title: const Text('Invita y Gana'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ReferralScreen()),
               );
             },
           ),
@@ -73,7 +102,8 @@ class SettingsScreen extends StatelessWidget {
                 if (context.mounted) {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const LoginScreen()),
                   );
                 }
               },
@@ -93,4 +123,3 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
-

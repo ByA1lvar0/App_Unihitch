@@ -1,0 +1,55 @@
+
+  // OBTENER HISTORIAL DE VIAJES
+  static Future<Map<String, dynamic>> getTripHistory(int userId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/history/$userId'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener historial');
+    }
+  }
+
+  // OBTENER ESTADÍSTICAS DE USUARIO
+  static Future<Map<String, dynamic>> getUserStatistics(int userId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/history/statistics/$userId'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener estadísticas');
+    }
+  }
+
+  // MÉTODO GET GENÉRICO
+  static Future<Map<String, dynamic>> get(String endpoint) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl$endpoint'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error en GET: $endpoint');
+    }
+  }
+
+  // MÉTODO POST GENÉRICO
+  static Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> data) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['error'] ?? 'Error en POST');
+    }
+  }
+}

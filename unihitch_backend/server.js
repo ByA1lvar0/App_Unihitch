@@ -1,220 +1,61 @@
 const express = require('express');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Configuración de PostgreSQL
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-});
-
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// ==================== RUTAS DE AUTENTICACIÓN ====================
+// Import Routes
+const authRoutes = require('./routes/auth.routes');
+const universityRoutes = require('./routes/university.routes');
+const tripRoutes = require('./routes/trip.routes');
+const reservationRoutes = require('./routes/reservation.routes');
+const walletRoutes = require('./routes/wallet.routes');
+const chatRoutes = require('./routes/chat.routes');
+const notificationRoutes = require('./routes/notification.routes');
+const userRoutes = require('./routes/user.routes');
+const adminRoutes = require('./routes/admin.routes');
+const communityRoutes = require('./routes/community.routes');
+const driverRoutes = require('./routes/driver.routes');
+const locationRoutes = require('./routes/location.routes');
+const ratingRoutes = require('./routes/rating.routes');
+const historyRoutes = require('./routes/history.routes');
+const favoritesRoutes = require('./routes/favorites.routes');
+const couponRoutes = require('./routes/coupon.routes');
+const referralRoutes = require('./routes/referral.routes');
 
-// Registro
-app.post('/api/register', async (req, res) => {
-  try {
-    const { nombre, correo, password, telefono, id_universidad } = req.body;
+// Mount Routes
+app.use('/api', authRoutes); // /api/register, /api/login
+app.use('/api', universityRoutes); // /api/universidades, /api/carreras/:id
+app.use('/api/viajes', tripRoutes); // /api/viajes...
+app.use('/api/reservas', reservationRoutes); // /api/reservas...
+app.use('/api', walletRoutes); // /api/wallet..., /api/payment-methods...
+app.use('/api', chatRoutes); // /api/chats..., /api/messages...
+app.use('/api/notifications', notificationRoutes); // /api/notifications...
+app.use('/api/users', userRoutes); // /api/users...
+app.use('/api/usuarios', userRoutes); // Alias for /api/usuarios endpoint (maps to / in userRoutes)
+app.use('/api/admin', adminRoutes); // /api/admin...
+app.use('/api/community', communityRoutes); // /api/community...
+app.use('/api/documentos-conductor', driverRoutes); // /api/documentos-conductor...
+app.use('/api/location', locationRoutes); // /api/location...
+app.use('/api/ratings', ratingRoutes); // /api/ratings...
+app.use('/api/history', historyRoutes); // /api/history...
+app.use('/api/favorites', favoritesRoutes); // /api/favorites...
+app.use('/api/coupons', couponRoutes); // /api/coupons...
+app.use('/api/referrals', referralRoutes); // /api/referrals...
 
-    // Verificar si el usuario ya existe
-    const userExists = await pool.query('SELECT * FROM usuario WHERE correo = $1', [correo]);
-    if (userExists.rows.length > 0) {
-      return res.status(400).json({ error: 'Este correo ya está registrado' });
-    }
-
-    // Encriptar contraseña
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Insertar usuario
-    const result = await pool.query(
-      'INSERT INTO usuario (nombre, correo, password, telefono, id_universidad) VALUES ($1, $2, $3, $4, $5) RETURNING id, nombre, correo, rol',
-      [nombre, correo, hashedPassword, telefono, id_universidad]
-    );
-
-    const user = result.rows[0];
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET);
-
-    res.json({ user, token });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al registrar usuario' });
-  }
+// Root Endpoint
+app.get('/', (req, res) => {
+  res.send('UniHitch Backend Running');
 });
 
-// Login
-app.post('/api/login', async (req, res) => {
-  try {
-    const { correo, password } = req.body;
-
-    // Buscar usuario
-    const result = await pool.query('SELECT * FROM usuario WHERE correo = $1', [correo]);
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Credenciales incorrectas' });
-    }
-
-    const user = result.rows[0];
-
-    // Verificar contraseña
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Credenciales incorrectas' });
-    }
-
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET);
-
-    res.json({
-      user: {
-        id: user.id,
-        nombre: user.nombre,
-        correo: user.correo,
-        telefono: user.telefono,
-        rol: user.rol
-      },
-      token
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al iniciar sesión' });
-  }
-});
-
-// ==================== RUTAS DE UNIVERSIDADES ====================
-
-app.get('/api/universidades', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM universidad ORDER BY nombre');
-    res.json(result.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener universidades' });
-  }
-});
-
-// ==================== RUTAS DE VIAJES ====================
-
-// Listar todos los viajes disponibles
-app.get('/api/viajes', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT v.*, u.nombre as conductor_nombre, u.telefono as conductor_telefono 
-      FROM viaje v 
-      JOIN usuario u ON v.id_conductor = u.id 
-      WHERE v.estado = 'DISPONIBLE' AND v.fecha_hora > NOW()
-      ORDER BY v.fecha_hora
-    `);
-    res.json(result.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener viajes' });
-  }
-});
-
-// Crear viaje
-app.post('/api/viajes', async (req, res) => {
-  try {
-    const { id_conductor, origen, destino, fecha_hora, precio, asientos_disponibles } = req.body;
-
-    const result = await pool.query(
-      'INSERT INTO viaje (id_conductor, origen, destino, fecha_hora, precio, asientos_disponibles) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [id_conductor, origen, destino, fecha_hora, precio, asientos_disponibles]
-    );
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al crear viaje' });
-  }
-});
-
-// Mis viajes como conductor
-app.get('/api/viajes/conductor/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM viaje WHERE id_conductor = $1 ORDER BY fecha_hora DESC',
-      [id]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener viajes' });
-  }
-});
-
-// ==================== RUTAS DE RESERVAS ====================
-
-// Crear reserva
-app.post('/api/reservas', async (req, res) => {
-  try {
-    const { id_viaje, id_pasajero } = req.body;
-
-    // Verificar si ya tiene una reserva
-    const existingReserva = await pool.query(
-      'SELECT * FROM reserva WHERE id_viaje = $1 AND id_pasajero = $2',
-      [id_viaje, id_pasajero]
-    );
-
-    if (existingReserva.rows.length > 0) {
-      return res.status(400).json({ error: 'Ya tienes una reserva para este viaje' });
-    }
-
-    // Verificar asientos disponibles
-    const viaje = await pool.query('SELECT asientos_disponibles FROM viaje WHERE id = $1', [id_viaje]);
-    if (viaje.rows[0].asientos_disponibles <= 0) {
-      return res.status(400).json({ error: 'No hay asientos disponibles' });
-    }
-
-    // Crear reserva
-    const result = await pool.query(
-      'INSERT INTO reserva (id_viaje, id_pasajero) VALUES ($1, $2) RETURNING *',
-      [id_viaje, id_pasajero]
-    );
-
-    // Reducir asientos disponibles
-    await pool.query(
-      'UPDATE viaje SET asientos_disponibles = asientos_disponibles - 1 WHERE id = $1',
-      [id_viaje]
-    );
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al crear reserva' });
-  }
-});
-
-// Mis reservas
-app.get('/api/reservas/pasajero/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query(`
-      SELECT r.*, v.origen, v.destino, v.fecha_hora, v.precio, u.nombre as conductor_nombre
-      FROM reserva r
-      JOIN viaje v ON r.id_viaje = v.id
-      JOIN usuario u ON v.id_conductor = u.id
-      WHERE r.id_pasajero = $1
-      ORDER BY v.fecha_hora DESC
-    `, [id]);
-    res.json(result.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener reservas' });
-  }
-});
-
-// Iniciar servidor
+// Start Server
 app.listen(port, () => {
-  console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
+  console.log(`✅ Servidor corriendo en http://localhost:${port}`);
+  console.log('🚀 Backend modularizado y activo.');
 });

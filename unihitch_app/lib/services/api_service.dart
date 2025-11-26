@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
@@ -35,7 +35,8 @@ class ApiService {
   }
 
   // LOGIN
-  static Future<Map<String, dynamic>> login(String correo, String password) async {
+  static Future<Map<String, dynamic>> login(
+      String correo, String password) async {
     final response = await http.post(
       Uri.parse('${Config.apiUrl}/login'),
       headers: {'Content-Type': 'application/json'},
@@ -59,6 +60,8 @@ class ApiService {
     required String password,
     required String telefono,
     required int idUniversidad,
+    String? carreraNombre,
+    String? codigoUniversitario,
   }) async {
     final response = await http.post(
       Uri.parse('${Config.apiUrl}/register'),
@@ -69,6 +72,9 @@ class ApiService {
         'password': password,
         'telefono': telefono,
         'id_universidad': idUniversidad,
+        if (carreraNombre != null) 'carrera_nombre': carreraNombre,
+        if (codigoUniversitario != null)
+          'codigo_universitario': codigoUniversitario,
       }),
     );
 
@@ -84,8 +90,9 @@ class ApiService {
 
   // OBTENER UNIVERSIDADES
   static Future<List<dynamic>> getUniversidades() async {
-    final response = await http.get(Uri.parse('${Config.apiUrl}/universidades'));
-    
+    final response =
+        await http.get(Uri.parse('${Config.apiUrl}/universidades'));
+
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
@@ -94,9 +101,16 @@ class ApiService {
   }
 
   // OBTENER VIAJES
-  static Future<List<dynamic>> getViajes() async {
-    final response = await http.get(Uri.parse('${Config.apiUrl}/viajes'));
-    
+  static Future<List<dynamic>> getViajes(
+      {String? origen, String? destino}) async {
+    String url = '${Config.apiUrl}/viajes';
+    if (origen != null || destino != null) {
+      url += '?';
+      if (origen != null) url += 'origen=$origen&';
+      if (destino != null) url += 'destino=$destino';
+    }
+    final response = await http.get(Uri.parse(url));
+
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
@@ -112,6 +126,7 @@ class ApiService {
     required String fechaHora,
     required double precio,
     required int asientosDisponibles,
+    bool? aceptaEfectivo,
   }) async {
     final response = await http.post(
       Uri.parse('${Config.apiUrl}/viajes'),
@@ -123,13 +138,14 @@ class ApiService {
         'fecha_hora': fechaHora,
         'precio': precio,
         'asientos_disponibles': asientosDisponibles,
+        if (aceptaEfectivo != null) 'acepta_efectivo': aceptaEfectivo,
       }),
     );
 
-    if (response.statusCode == 200) {
+    if (response.statusCode == 201) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Error al crear viaje');
+      throw Exception(jsonDecode(response.body)['error']);
     }
   }
 
@@ -147,36 +163,140 @@ class ApiService {
       }),
     );
 
-    if (response.statusCode == 200) {
+    if (response.statusCode == 201) {
       return jsonDecode(response.body);
     } else {
       throw Exception(jsonDecode(response.body)['error']);
     }
   }
 
-  // MIS VIAJES (CONDUCTOR)
-  static Future<List<dynamic>> getMisViajes(int idConductor) async {
+  // OBTENER HISTORIAL DE VIAJES
+  static Future<Map<String, dynamic>> getTripHistory(int userId) async {
     final response = await http.get(
-      Uri.parse('${Config.apiUrl}/viajes/conductor/$idConductor'),
+      Uri.parse('${Config.apiUrl}/history/$userId'),
     );
-    
+
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Error al cargar viajes');
+      throw Exception('Error al obtener historial');
     }
   }
 
-  // MIS RESERVAS (PASAJERO)
-  static Future<List<dynamic>> getMisReservas(int idPasajero) async {
+  // OBTENER ESTADÍSTICAS DE USUARIO
+  static Future<Map<String, dynamic>> getUserStatistics(int userId) async {
     final response = await http.get(
-      Uri.parse('${Config.apiUrl}/reservas/pasajero/$idPasajero'),
+      Uri.parse('${Config.apiUrl}/history/statistics/$userId'),
     );
-    
+
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Error al cargar reservas');
+      throw Exception('Error al obtener estadísticas');
+    }
+  }
+
+  // MÉTODO GET GENÉRICO
+  static Future<Map<String, dynamic>> get(String endpoint) async {
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}$endpoint'),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error en GET: $endpoint');
+    }
+  }
+
+  // MÉTODO POST GENÉRICO
+  static Future<Map<String, dynamic>> post(
+      String endpoint, Map<String, dynamic> data) async {
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}$endpoint'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['error'] ?? 'Error en POST');
+    }
+  }
+
+  // OBTENER DETALLES DE USUARIO
+  static Future<Map<String, dynamic>> getUserDetails(int userId) async {
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/users/$userId'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener detalles del usuario');
+    }
+  }
+
+  // ACTUALIZAR CONTACTO DE EMERGENCIA
+  static Future<void> updateEmergencyContact({
+    required int userId,
+    required String emergencyNumber,
+  }) async {
+    final response = await http.put(
+      Uri.parse('${Config.apiUrl}/users/$userId/emergency'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'numero_emergencia': emergencyNumber}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Error al actualizar contacto de emergencia');
+    }
+  }
+
+  // OBTENER CALIFICACIONES DE USUARIO
+  static Future<List<dynamic>> getUserRatings(int userId) async {
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/ratings/user/$userId'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return [];
+    }
+  }
+
+  // OBTENER WALLET
+  static Future<Map<String, dynamic>> getWallet(int userId) async {
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/wallet/$userId'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener wallet');
+    }
+  }
+
+  // OBTENER MIS VIAJES (COMO CONDUCTOR)
+  static Future<List<dynamic>> getMisViajes(int userId) async {
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/viajes/conductor/$userId'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return [];
+    }
+  }
+
+  // OBTENER MIS RESERVAS (COMO PASAJERO)
+  static Future<List<dynamic>> getMisReservas(int userId) async {
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/reservas/pasajero/$userId'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return [];
     }
   }
 }

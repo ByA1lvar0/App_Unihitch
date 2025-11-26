@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'create_trip_screen.dart';
@@ -25,13 +26,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _checkPermissions();
     _loadData();
+  }
+
+  Future<void> _checkPermissions() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
   }
 
   Future<void> _loadData() async {
     final user = await ApiService.getUser();
     final viajes = await ApiService.getViajes();
-    
+
     setState(() {
       _user = user;
       _viajes = viajes;
@@ -45,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
         idViaje: idViaje,
         idPasajero: _user!['id'],
       );
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -58,7 +67,9 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red),
         );
       }
     }
@@ -140,7 +151,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: const Icon(Icons.notifications_outlined),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No tienes notificaciones nuevas')),
+                    const SnackBar(
+                        content: Text('No tienes notificaciones nuevas')),
                   );
                 },
                 constraints: const BoxConstraints(),
@@ -236,7 +248,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int get _viajesCerca => _viajes.length > 3 ? 3 : _viajes.length;
 
-  Widget _buildInfoItem(IconData icon, String text, {Color color = Colors.black}) {
+  Widget _buildInfoItem(IconData icon, String text,
+      {Color color = Colors.black}) {
     return Row(
       children: [
         Icon(icon, color: color, size: 18),
@@ -290,7 +303,8 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const CreateTripScreen()),
+                  MaterialPageRoute(
+                      builder: (context) => const CreateTripScreen()),
                 ).then((_) => _loadData());
               },
               icon: const Icon(Icons.add_circle_outline, color: Colors.white),
@@ -365,8 +379,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final ahora = DateTime.now();
     final diferencia = fecha.difference(ahora);
     final minutosRestantes = diferencia.inMinutes;
-    final asientosTotales = (viaje['asientos_disponibles'] as int) + (viaje['asientos_totales'] ?? viaje['asientos_disponibles'] + 2) - viaje['asientos_disponibles'];
-    final asientosUsados = asientosTotales - (viaje['asientos_disponibles'] as int);
+    final asientosTotales = (viaje['asientos_disponibles'] as int) +
+        (viaje['asientos_totales'] ?? viaje['asientos_disponibles'] + 2) -
+        viaje['asientos_disponibles'];
+    final asientosUsados =
+        asientosTotales - (viaje['asientos_disponibles'] as int);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -441,7 +458,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.access_time, size: 14, color: Colors.grey.shade600),
+                      Icon(Icons.access_time,
+                          size: 14, color: Colors.grey.shade600),
                       const SizedBox(width: 4),
                       Text(
                         'Sale en $minutosRestantes min',
@@ -575,7 +593,8 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const CreateTripScreen()),
+                MaterialPageRoute(
+                    builder: (context) => const CreateTripScreen()),
               ).then((_) => _loadData());
             },
           ),
@@ -644,7 +663,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _selectedIndex = index;
         });
-        
+
         if (index == 1) {
           // Buscar
           Navigator.push(

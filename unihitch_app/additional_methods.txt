@@ -1,0 +1,28 @@
+
+  // OBTENER DETALLES DE USUARIO
+  static Future<Map<String, dynamic>> getUserDetails(int userId) async {
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/users/$userId'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener detalles del usuario');
+    }
+  }
+
+  // ACTUALIZAR CONTACTO DE EMERGENCIA
+  static Future<void> updateEmergencyContact({
+    required int userId,
+    required String emergencyNumber,
+  }) async {
+    final response = await http.put(
+      Uri.parse('${Config.apiUrl}/users/$userId/emergency'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'numero_emergencia': emergencyNumber}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Error al actualizar contacto de emergencia');
+    }
+  }
+}
