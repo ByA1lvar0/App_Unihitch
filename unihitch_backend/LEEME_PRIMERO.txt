@@ -1,0 +1,93 @@
+=====================================================
+    CONFIGURAR BASE DE DATOS - INSTRUCCIONES SIMPLES
+=====================================================
+
+📌 PASO 1: INSTALAR POSTGRESQL (si no lo tienes)
+
+Descargar: https://www.postgresql.org/download/windows/
+- Instalar y recordar la contraseña que pongas (ejemplo: postgres)
+- Durante la instalación, anota el puerto (por defecto es 5432)
+
+=====================================================
+
+📌 PASO 2: EJECUTAR EL SCRIPT DE CONFIGURACION
+
+OPCION A - USANDO EL SCRIPT AUTOMATICO (RECOMENDADO):
+1. Doble clic en el archivo: setup_database.bat
+2. Escribe tu contraseña de PostgreSQL cuando te lo pida
+3. ¡Listo!
+
+OPCION B - MANUALMENTE:
+1. Abre CMD o PowerShell
+2. Navega a esta carpeta:
+   cd C:\Users\Valentino\Downloads\unihitch_backend
+
+3. Ejecuta estos comandos (escribe tu contraseña cuando te lo pida):
+
+   psql -U postgres -c "CREATE DATABASE unihitch_db;"
+   psql -U postgres -d unihitch_db -f database_setup.sql
+
+=====================================================
+
+📌 PASO 3: CONFIGURAR EL ARCHIVO .env
+
+En la carpeta unihitch_backend, edita el archivo .env:
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=TU_CONTRASEÑA_AQUI  <-- Cambia esto
+DB_NAME=unihitch_db
+
+JWT_SECRET=tu_clave_secreta_aleatoria_aqui  <-- Cambia esto
+PORT=3000
+
+IMPORTANTE: Reemplaza "TU_CONTRASEÑA_AQUI" con la contraseña que usaste para PostgreSQL
+
+=====================================================
+
+📌 PASO 4: INSTALAR DEPENDENCIAS DEL BACKEND
+
+Abre CMD o PowerShell en la carpeta unihitch_backend y ejecuta:
+
+npm install
+
+Esto instalará todas las dependencias necesarias.
+
+=====================================================
+
+📌 PASO 5: INICIAR EL SERVIDOR
+
+Ejecuta:
+
+npm start
+
+Deberias ver: "🚀 Servidor corriendo en http://localhost:3000"
+
+=====================================================
+
+⚠️ PROBLEMAS COMUNES:
+
+1. "psql no se reconoce como comando"
+   - Asegurate de que PostgreSQL este instalado
+   - Agrega la ruta de PostgreSQL al PATH de Windows
+   - Usa la opcion B y busca psql.exe manualmente
+
+2. "Error de autenticación"
+   - Verifica que tu contraseña de PostgreSQL sea correcta
+   - El usuario debe ser: postgres
+
+3. "Base de datos ya existe"
+   - Ejecuta: psql -U postgres -c "DROP DATABASE unihitch_db;"
+   - Luego vuelve a ejecutar el script de configuracion
+
+=====================================================
+
+✅ CUANDO TODO ESTE LISTO:
+
+- Backend corriendo en: http://localhost:3000
+- Frontend corriendo en Edge
+- Ya puedes usar todas las funcionalidades de la app!
+
+=====================================================
+

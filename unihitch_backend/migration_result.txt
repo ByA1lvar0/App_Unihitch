@@ -1,0 +1,38 @@
+=== MIGRACIÓN TIPO_USUARIO ===
+
+Columnas existentes: id, nombre, correo, password, telefono, id_universidad, carrera, rol, foto_perfil, calificacion_promedio, total_viajes, total_ahorrado, verificado, activo, fecha_registro, id_carrera, codigo_universitario, ubicacion_lat, ubicacion_lng, ubicacion_actualizada, numero_emergencia, puede_conducir, estado_verificacion_conductor, fecha_verificacion_conductor, contactos_emergencia, latitud, longitud, ultima_actualizacion_ubicacion, tipo_usuario
+
+✅ Columna es_agente_externo agregada
+✓ Columna tipo_usuario ya existe
+
+=== COLUMNAS FINALES ===
+id: integer
+nombre: character varying
+correo: character varying
+password: character varying
+telefono: character varying
+id_universidad: integer
+carrera: character varying
+rol: character varying
+foto_perfil: text
+calificacion_promedio: numeric
+total_viajes: integer
+total_ahorrado: numeric
+verificado: boolean
+activo: boolean
+fecha_registro: timestamp without time zone
+id_carrera: integer
+codigo_universitario: character varying
+ubicacion_lat: numeric
+ubicacion_lng: numeric
+ubicacion_actualizada: timestamp without time zone
+numero_emergencia: character varying
+puede_conducir: boolean
+estado_verificacion_conductor: character varying
+fecha_verificacion_conductor: timestamp without time zone
+contactos_emergencia: text
+latitud: numeric
+longitud: numeric
+ultima_actualizacion_ubicacion: timestamp without time zone
+tipo_usuario: character varying
+es_agente_externo: boolean
