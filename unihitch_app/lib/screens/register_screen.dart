@@ -16,7 +16,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _telefonoController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+  final _referralCodeController = TextEditingController();
+
   List<dynamic> _universidades = [];
   int? _universidadSeleccionada;
   bool _isLoading = false;
@@ -62,6 +63,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _passwordController.text,
         telefono: _telefonoController.text.trim(),
         idUniversidad: _universidadSeleccionada!,
+        referralCode: _referralCodeController.text.trim().isNotEmpty
+            ? _referralCodeController.text.trim()
+            : null,
       );
 
       if (mounted) {
@@ -73,7 +77,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -99,7 +105,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     children: [
                       const Text(
                         'Únete a UniHitch',
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 24),
                       // Nombre
@@ -226,6 +233,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           return null;
                         },
                       ),
+                      const SizedBox(height: 16),
+                      // Código de Referido (Opcional)
+                      TextFormField(
+                        controller: _referralCodeController,
+                        decoration: const InputDecoration(
+                          labelText: 'Código de Referido (Opcional)',
+                          border: OutlineInputBorder(),
+                          prefixIcon:
+                              Icon(Icons.card_giftcard, color: Colors.purple),
+                          hintText: 'UNIHITCH000001',
+                          helperText:
+                              '¿Te invitó un amigo? Ingresa su código aquí',
+                          helperMaxLines: 2,
+                        ),
+                        textCapitalization: TextCapitalization.characters,
+                      ),
                       const SizedBox(height: 24),
                       // Botón Registrar
                       ElevatedButton(
@@ -236,8 +259,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           foregroundColor: Colors.white,
                         ),
                         child: _isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('CREAR CUENTA', style: TextStyle(fontSize: 16)),
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
+                            : const Text('CREAR CUENTA',
+                                style: TextStyle(fontSize: 16)),
                       ),
                     ],
                   ),
@@ -254,6 +279,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _telefonoController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _referralCodeController.dispose();
     super.dispose();
   }
 }

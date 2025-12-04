@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
+import 'package:intl/intl.dart';
 
 class SearchTripScreen extends StatefulWidget {
   const SearchTripScreen({super.key});
@@ -8,31 +10,57 @@ class SearchTripScreen extends StatefulWidget {
 }
 
 class _SearchTripScreenState extends State<SearchTripScreen> {
+  final _origenController = TextEditingController();
+  final _destinoController = TextEditingController();
   double maxPrice = 10;
+  int numPasajeros = 1;
+  List<dynamic> _viajes = [];
+  bool _isLoading = false;
+  bool _hasSearched = false;
+
+  Future<void> _buscarViajes() async {
+    setState(() {
+      _isLoading = true;
+      _hasSearched = true;
+    });
+
+    try {
+      final viajes = await ApiService.getViajes(
+        origen:
+            _origenController.text.isNotEmpty ? _origenController.text : null,
+        destino:
+            _destinoController.text.isNotEmpty ? _destinoController.text : null,
+      );
+
+      // Filtrar por precio máximo
+      final viajesFiltrados = viajes.where((viaje) {
+        final precio = double.tryParse(viaje['precio'].toString()) ?? 0;
+        return precio <= maxPrice;
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _viajes = viajesFiltrados;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Buscar Viaje'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Filtros')),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Buscar')),
-              );
-            },
-          ),
-        ],
+        backgroundColor: Colors.blue.shade700,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -46,6 +74,7 @@ class _SearchTripScreenState extends State<SearchTripScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Origen
                       Row(
                         children: [
                           Icon(Icons.location_on, color: Colors.pink.shade300),
@@ -57,14 +86,22 @@ class _SearchTripScreenState extends State<SearchTripScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(Icons.my_location, color: Colors.pink.shade300),
-                          Expanded(child: Text('Mi ubicación')),
-                          const Icon(Icons.arrow_drop_down),
-                        ],
+                      TextField(
+                        controller: _origenController,
+                        decoration: InputDecoration(
+                          hintText: 'Ingresa el origen',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
+
+                      // Destino
                       Row(
                         children: [
                           Icon(Icons.location_on, color: Colors.red.shade300),
@@ -76,78 +113,62 @@ class _SearchTripScreenState extends State<SearchTripScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(Icons.school, color: Colors.blue),
-                          Expanded(child: Text('UDEP - Facultad de Ingeniería')),
-                          const Icon(Icons.arrow_drop_down),
-                        ],
+                      TextField(
+                        controller: _destinoController,
+                        decoration: InputDecoration(
+                          hintText: 'Ingresa el destino',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
+
+                      // Pasajeros
                       Row(
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.access_time),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Hora:',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(child: Text('Ahora')),
-                                    const Icon(Icons.arrow_drop_down),
-                                  ],
-                                ),
-                              ],
-                            ),
+                          const Icon(Icons.people),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Pasajeros:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.people),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Pasajeros:',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(child: Text('1')),
-                                    const Icon(Icons.arrow_drop_down),
-                                  ],
-                                ),
-                              ],
-                            ),
+                          const Spacer(),
+                          DropdownButton<int>(
+                            value: numPasajeros,
+                            items: [1, 2, 3, 4].map((int value) {
+                              return DropdownMenuItem<int>(
+                                value: value,
+                                child: Text('$value'),
+                              );
+                            }).toList(),
+                            onChanged: (int? newValue) {
+                              setState(() {
+                                numPasajeros = newValue ?? 1;
+                              });
+                            },
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        'Precio máximo: S/. 10',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+
+                      // Precio máximo
+                      Text(
+                        'Precio máximo: S/. ${maxPrice.toStringAsFixed(0)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Slider(
                         value: maxPrice,
                         min: 0,
-                        max: 20,
+                        max: 50,
+                        divisions: 10,
                         activeColor: Colors.purple,
+                        label: 'S/. ${maxPrice.toStringAsFixed(0)}',
                         onChanged: (value) {
                           setState(() {
                             maxPrice = value;
@@ -159,31 +180,45 @@ class _SearchTripScreenState extends State<SearchTripScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+
+              // Botón de búsqueda
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Buscando viajes...')),
-                    );
-                  },
+                  onPressed: _isLoading ? null : _buscarViajes,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue.shade600,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text('BUSCAR VIAJES'),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('BUSCAR VIAJES'),
                 ),
               ),
               const SizedBox(height: 32),
-              const Text(
-                'Viajes Disponibles',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+
+              // Resultados
+              if (_hasSearched) ...[
+                Text(
+                  _viajes.isEmpty
+                      ? 'No se encontraron viajes'
+                      : 'Viajes Disponibles (${_viajes.length})',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              _buildTripCard('Carlos Morales', '4.9', 'Ing. Industrial - UDEP', 6),
+                const SizedBox(height: 16),
+                if (_viajes.isNotEmpty)
+                  ..._viajes.map((viaje) => _buildTripCard(viaje)),
+              ],
             ],
           ),
         ),
@@ -191,8 +226,35 @@ class _SearchTripScreenState extends State<SearchTripScreen> {
     );
   }
 
-  Widget _buildTripCard(String name, String rating, String info, int price) {
+  Widget _buildTripCard(Map<String, dynamic> viaje) {
+    final precio = double.tryParse(viaje['precio'].toString()) ?? 0;
+    final asientosDisponibles = viaje['asientos_disponibles'] ?? 0;
+    final asientosTotales = viaje['asientos_totales'] ?? 0;
+    final conductorNombre = viaje['conductor_nombre'] ?? 'Conductor';
+    final calificacion = viaje['calificacion_promedio']?.toString() ?? '0.0';
+
+    // Formatear fecha
+    String fechaTexto = 'Próximamente';
+    if (viaje['fecha_hora'] != null) {
+      try {
+        final fecha = DateTime.parse(viaje['fecha_hora']);
+        final ahora = DateTime.now();
+        final diferencia = fecha.difference(ahora);
+
+        if (diferencia.inMinutes < 60) {
+          fechaTexto = 'Sale en ${diferencia.inMinutes} min';
+        } else if (diferencia.inHours < 24) {
+          fechaTexto = 'Sale en ${diferencia.inHours} h';
+        } else {
+          fechaTexto = DateFormat('dd/MM HH:mm').format(fecha);
+        }
+      } catch (e) {
+        fechaTexto = viaje['fecha_hora'].toString();
+      }
+    }
+
     return Card(
+      margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -205,21 +267,27 @@ class _SearchTripScreenState extends State<SearchTripScreen> {
                 children: [
                   Row(
                     children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        conductorNombre,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       const SizedBox(width: 8),
                       const Icon(Icons.star, color: Colors.amber, size: 16),
-                      Text(rating),
+                      Text(calificacion),
                     ],
                   ),
-                  Text(info, style: TextStyle(color: Colors.grey.shade600)),
+                  Text(
+                    '${viaje['origen']} → ${viaje['destino']}',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       const Icon(Icons.access_time, size: 14),
-                      const Text(' Sale en 15 min'),
+                      Text(' $fechaTexto'),
                       const SizedBox(width: 12),
                       const Icon(Icons.people, size: 14),
-                      const Text(' 2/4 asientos disponibles'),
+                      Text(' $asientosDisponibles/$asientosTotales asientos'),
                     ],
                   ),
                 ],
@@ -228,7 +296,7 @@ class _SearchTripScreenState extends State<SearchTripScreen> {
             Column(
               children: [
                 Text(
-                  'S/ $price',
+                  'S/ ${precio.toStringAsFixed(0)}',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -237,11 +305,36 @@ class _SearchTripScreenState extends State<SearchTripScreen> {
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Solicitando viaje...')),
-                    );
-                  },
+                  onPressed: asientosDisponibles > 0
+                      ? () async {
+                          try {
+                            final user = await ApiService.getUser();
+                            await ApiService.createReserva(
+                              idViaje: viaje['id'],
+                              idPasajero: user!['id'],
+                            );
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content:
+                                      Text('¡Reserva realizada con éxito!'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                              _buscarViajes(); // Refresh
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      : null,
                   child: const Text('SOLICITAR'),
                 ),
               ],
@@ -251,5 +344,11 @@ class _SearchTripScreenState extends State<SearchTripScreen> {
       ),
     );
   }
-}
 
+  @override
+  void dispose() {
+    _origenController.dispose();
+    _destinoController.dispose();
+    super.dispose();
+  }
+}

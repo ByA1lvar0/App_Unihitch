@@ -2,10 +2,21 @@ const express = require('express');
 const router = express.Router();
 const tripController = require('../controllers/trip.controller');
 const { createTripValidation } = require('../validators/trip.validator');
+const { blockExternalUsers } = require('../middleware/external-user.middleware');
+const { verifyDriverDocuments } = require('../middleware/driver-validation.middleware');
+const authMiddleware = require('../middleware/auth.middleware');
 
-router.get('/', tripController.getTrips);
-router.post('/', createTripValidation, tripController.createTrip);
-router.get('/search', tripController.searchTrips);
+router.use(authMiddleware);
+
+// Solo universitarios pueden buscar y ver viajes disponibles
+router.get('/', blockExternalUsers, tripController.getTrips);
+router.get('/search', blockExternalUsers, tripController.searchTrips);
+
+// Todos pueden crear viajes PERO deben tener documentos aprobados (SOAT, Licencia)
+router.post('/', createTripValidation, verifyDriverDocuments, tripController.createTrip);
+
+// Todos pueden ver viajes de un conductor específico
 router.get('/conductor/:id', tripController.getDriverTrips);
 
 module.exports = router;
+

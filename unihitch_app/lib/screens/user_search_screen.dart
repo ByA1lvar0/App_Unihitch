@@ -64,8 +64,13 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       );
     } catch (e) {
       if (mounted) {
+        // Extract message from Exception: ...
+        final message = e.toString().replaceAll('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al iniciar chat: $e')),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -125,7 +130,31 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                           style: TextStyle(color: Colors.blue.shade700),
                         ),
                       ),
-                      title: Text(user['nombre']),
+                      title: Row(
+                        children: [
+                          Expanded(child: Text(user['nombre'])),
+                          if (user['es_agente_externo'] == true)
+                            Container(
+                              margin: const EdgeInsets.only(left: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                                border:
+                                    Border.all(color: Colors.orange.shade300),
+                              ),
+                              child: Text(
+                                'Externo',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.orange.shade800,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                       subtitle: Text(user['correo']),
                       onTap: () => _startChat(user),
                     );

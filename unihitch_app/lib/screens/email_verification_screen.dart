@@ -42,7 +42,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   void _startTimer() {
     _secondsRemaining = 900; // Reset a 15 minutos
     _canResend = false;
-    
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         if (_secondsRemaining > 0) {
@@ -147,7 +147,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const SizedBox(height: 40 const Icon(
+            const SizedBox(height: 40),
+            const Icon(
               Icons.mark_email_read,
               size: 100,
               color: Colors.blue,
@@ -174,7 +175,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               ),
             ),
             const SizedBox(height: 40),
-            
+
             // PIN Code Input
             PinCodeTextField(
               appContext: context,
@@ -201,9 +202,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               onCompleted: (code) => _verifyCode(code),
               onChanged: (value) {},
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Timer
             if (!_canResend)
               Text(
@@ -213,9 +214,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   fontSize: 14,
                 ),
               ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Botón Reenviar
             if (_canResend)
               TextButton(
@@ -227,15 +228,14 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 onPressed: null,
                 child: const Text('Reenviar código'),
               ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Loading indicator
-            if (_isLoading)
-              const CircularProgressIndicator(),
-            
+            if (_isLoading) const CircularProgressIndicator(),
+
             const SizedBox(height: 40),
-            
+
             // Help text
             Container(
               padding: const EdgeInsets.all(16),

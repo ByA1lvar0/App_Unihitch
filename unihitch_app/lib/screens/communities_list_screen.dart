@@ -22,11 +22,23 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
 
   Future<void> _loadData() async {
     try {
-      // Verificar si el usuario está verificado
-      final user = await ApiService.getUser();
-      if (user != null) {
+      // 1. Obtener usuario guardado localmente para tener el ID
+      var localUser = await ApiService.getUser();
+
+      if (localUser != null) {
+        // 2. Obtener datos FRESCOS del servidor para asegurar el rol actualizado
+        try {
+          final freshUser = await ApiService.getUserDetails(localUser['id']);
+          // Actualizar usuario local con datos frescos
+          await ApiService.saveUser(freshUser);
+          localUser = freshUser; // Usar datos frescos de aquí en adelante
+        } catch (e) {
+          print('Error actualizando usuario: $e');
+          // Si falla, seguimos con el localUser que ya teníamos
+        }
+
         // BLOQUEAR ACCESO A AGENTES EXTERNOS
-        if (user['es_agente_externo'] == true) {
+        if (localUser!['es_agente_externo'] == true) {
           setState(() => _isLoading = false);
           if (mounted) {
             showDialog(
@@ -58,20 +70,20 @@ class _CommunitiesListScreenState extends State<CommunitiesListScreen> {
           return;
         }
 
-        _isVerified = user['verificado'] == true;
+        _isVerified = localUser['verificado'] == true;
 
         // Cargar universidades
         final todasUniversidades = await ApiService.getUniversidades();
 
         // Si es ADMIN, mostrar todas. Si es USER, solo su universidad
-        if (user['rol'] == 'ADMIN') {
+        if (localUser['rol'] == 'ADMIN') {
           // Admin ve todas las comunidades
           setState(() {
             _universidades = todasUniversidades;
           });
         } else {
           // Usuario normal solo ve su universidad
-          final miUniversidadId = user['id_universidad'];
+          final miUniversidadId = localUser['id_universidad'];
           final miUniversidad = todasUniversidades
               .where((uni) => uni['id'] == miUniversidadId)
               .toList();

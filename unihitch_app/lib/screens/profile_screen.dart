@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'edit_profile_screen.dart';
+import 'trip_history_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -24,8 +26,11 @@ class ProfileScreen extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.edit),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Editar perfil')),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditProfileScreen(user: user),
+                    ),
                   );
                 },
               ),
@@ -93,9 +98,12 @@ class ProfileScreen extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStat(Icons.star, Colors.amber, '4.8', 'Calificación'),
-                      _buildStat(Icons.directions_car, Colors.blue, '127', 'Viajes'),
-                      _buildStat(Icons.savings, Colors.green, 'S/. 890', 'Ahorrados'),
+                      _buildStat(
+                          Icons.star, Colors.amber, '4.8', 'Calificación'),
+                      _buildStat(
+                          Icons.directions_car, Colors.blue, '127', 'Viajes'),
+                      _buildStat(
+                          Icons.savings, Colors.green, 'S/. 890', 'Ahorrados'),
                     ],
                   ),
                 ),
@@ -122,32 +130,40 @@ class ProfileScreen extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(
-                        child: _buildBadge('Top Rider', Colors.amber, Icons.workspace_premium),
+                        child: _buildBadge(
+                            'Top Rider', Colors.amber, Icons.workspace_premium),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _buildBadge('5 Estrellas', Colors.blue, Icons.star),
+                        child:
+                            _buildBadge('5 Estrellas', Colors.blue, Icons.star),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _buildBadge('Eco-Friendly', Colors.green, Icons.eco),
+                        child: _buildBadge(
+                            'Eco-Friendly', Colors.green, Icons.eco),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 40),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Editar perfil')),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EditProfileScreen(user: user),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.person, color: Colors.white),
-                      label: const Text('EDITAR PERFIL', style: TextStyle(color: Colors.white)),
+                      label: const Text('EDITAR PERFIL',
+                          style: TextStyle(color: Colors.white)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue.shade600,
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -156,13 +172,17 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Ver historial')),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TripHistoryScreen(),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.history),
@@ -174,7 +194,8 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -246,4 +267,3 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 }
-

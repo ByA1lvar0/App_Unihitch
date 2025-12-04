@@ -24,6 +24,9 @@ const sendMessage = async (req, res) => {
 
         // Verificar si el usuario está verificado
         const user = await pool.query('SELECT verificado FROM usuario WHERE id = $1', [userId]);
+        if (!user.rows[0]) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
         if (!user.rows[0].verificado) {
             return res.status(403).json({ error: 'Debes estar verificado para enviar mensajes' });
         }

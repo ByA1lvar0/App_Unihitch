@@ -20,9 +20,16 @@ const getWallet = async (req, res) => {
             [userId]
         );
 
+        // Obtener solicitudes pendientes
+        const pendingRecharges = await pool.query(
+            'SELECT * FROM comprobante_recarga WHERE id_usuario = $1 AND estado = \'PENDIENTE\' ORDER BY fecha_solicitud DESC',
+            [userId]
+        );
+
         res.json({
             saldo: wallet.rows[0].saldo,
-            transacciones: transactions.rows
+            transacciones: transactions.rows,
+            recargas_pendientes: pendingRecharges.rows
         });
     } catch (error) {
         console.error(error);
@@ -89,11 +96,11 @@ const rechargeManual = async (req, res) => {
 const getPendingRecharges = async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT sr.*, u.nombre as usuario_nombre, u.correo as usuario_correo
-       FROM solicitudes_recarga sr
-       JOIN usuario u ON sr.id_usuario = u.id
-       WHERE sr.estado = 'PENDIENTE'
-       ORDER BY sr.fecha_solicitud ASC`
+            `SELECT cr.*, u.nombre as usuario_nombre, u.correo as usuario_correo, cr.imagen_comprobante as comprobante_base64
+       FROM comprobante_recarga cr
+       JOIN usuario u ON cr.id_usuario = u.id
+       WHERE cr.estado = 'PENDIENTE'
+       ORDER BY cr.fecha_solicitud ASC`
         );
 
         res.json(result.rows);
@@ -110,7 +117,7 @@ const approveRecharge = async (req, res) => {
 
         // Obtener datos de la solicitud
         const solicitud = await pool.query(
-            'SELECT * FROM  solicitudes_recarga WHERE id = $1 AND estado = \'PENDIENTE\'',
+            'SELECT * FROM comprobante_recarga WHERE id = $1 AND estado = \'PENDIENTE\'',
             [id]
         );
 
@@ -126,11 +133,13 @@ const approveRecharge = async (req, res) => {
             await client.query('BEGIN');
 
             // Actualizar solicitud a APROBADO
+            // Note: comprobante_recarga doesn't have id_revisor column in migration, but we can ignore it or add it.
+            // For now, let's just update status.
             await client.query(
-                `UPDATE solicitudes_recarga 
-         SET estado = 'APROBADO', fecha_revision = NOW(), id_revisor = $1 
-         WHERE id = $2`,
-                [id_revisor, id]
+                `UPDATE comprobante_recarga 
+         SET estado = 'APROBADO'
+         WHERE id = $1`,
+                [id]
             );
 
             // Actualizar saldo del usuario
@@ -142,9 +151,16 @@ const approveRecharge = async (req, res) => {
             // Crear transacción
             await client.query(
                 `INSERT INTO transaccion 
-         (id_usuario, tipo, monto, descripcion, id_solicitud_recarga) 
-         VALUES ($1, 'RECARGA', $2, 'Recarga de billetera', $3)`,
+         (id_usuario, tipo, monto, descripcion, id_comprobante_recarga) 
+         VALUES ($1, 'RECARGA', $2, 'Recarga de billetera aprobada', $3)`,
                 [id_usuario, monto, id]
+            );
+
+            // Crear notificación
+            await client.query(
+                `INSERT INTO notificacion (id_usuario, titulo, mensaje, tipo) 
+         VALUES ($1, 'Recarga Aprobada', $2, 'SYSTEM')`,
+                [id_usuario, `Tu recarga de S/ ${monto} ha sido aprobada exitosamente.`]
             );
 
             await client.query('COMMIT');
@@ -168,12 +184,11 @@ const rejectRecharge = async (req, res) => {
         const { id_revisor, motivo_rechazo } = req.body;
 
         const result = await pool.query(
-            `UPDATE solicitudes_recarga 
-       SET estado = 'RECHAZADO', fecha_revision = NOW(), 
-           id_revisor = $1, motivo_rechazo = $2 
-       WHERE id = $3 AND estado = 'PENDIENTE'
+            `UPDATE comprobante_recarga 
+       SET estado = 'RECHAZADO', observaciones = $1
+       WHERE id = $2 AND estado = 'PENDIENTE'
        RETURNING *`,
-            [id_revisor, motivo_rechazo || 'Comprobante inválido', id]
+            [motivo_rechazo || 'Comprobante inválido', id]
         );
 
         if (result.rows.length === 0) {
@@ -411,26 +426,15 @@ const rechargeRequest = async (req, res) => {
 
         // Guardar comprobante
         const comprobante = await pool.query(
-            'INSERT INTO comprobante_recarga (id_usuario, monto, metodo, numero_operacion, imagen_comprobante, estado, tipo_recarga) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-            [userId, amount, method, operationNumber, imageBase64, 'COMPLETADA', 'TRANSFERENCIA']
+            'INSERT INTO comprobante_recarga (id_usuario, monto, metodo, numero_operacion, imagen_comprobante, estado, observaciones) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [userId, amount, method, operationNumber, imageBase64, 'PENDIENTE', 'Esperando aprobación']
         );
 
-        // Crear transacción
-        const transaction = await pool.query(
-            'INSERT INTO transaccion (id_usuario, tipo, monto, metodo_pago, descripcion) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [userId, 'RECARGA', amount, method, `Recarga de saldo vía ${method}`]
-        );
-
-        // Actualizar saldo automáticamente
-        const wallet = await pool.query(
-            'UPDATE wallet SET saldo = saldo + $1, fecha_actualizacion = NOW() WHERE id_usuario = $2 RETURNING *',
-            [amount, userId]
-        );
+        // No actualizamos saldo ni creamos transacción aquí, eso se hace al aprobar.
 
         res.json({
             comprobante: comprobante.rows[0],
-            transaction: transaction.rows[0],
-            newBalance: wallet.rows[0].saldo
+            message: 'Solicitud enviada. Esperando aprobación del administrador.'
         });
     } catch (error) {
         console.error(error);
@@ -468,8 +472,8 @@ const rechargeCard = async (req, res) => {
 
         // Crear transacción
         const transaction = await pool.query(
-            'INSERT INTO transaccion (id_usuario, tipo, monto, metodo_pago, descripcion) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [userId, 'RECARGA', amount, 'TARJETA', `Recarga con tarjeta ****${cardNumber.slice(-4)}`]
+            'INSERT INTO transaccion (id_usuario, tipo, monto, metodo_pago, descripcion, id_comprobante_recarga) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [userId, 'RECARGA', amount, 'TARJETA', `Recarga con tarjeta ****${cardNumber.slice(-4)}`, comprobante.rows[0].id]
         );
 
         // Actualizar saldo automáticamente

@@ -6,6 +6,7 @@ import '../services/location_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/directions_service.dart';
+import 'sos_emergency_screen.dart';
 
 class TripTrackingScreen extends StatefulWidget {
   final int tripId;
@@ -579,16 +580,24 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
             ),
           ),
 
-          // Botón de Emergencia
+          // Botón de Emergencia SOS
           Positioned(
             bottom: 190,
             right: 16,
             child: FloatingActionButton(
               heroTag: 'emergency',
-              onPressed: _showEmergencyDialog,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SOSEmergencyScreen(
+                      tripData: widget.tripData,
+                    ),
+                  ),
+                );
+              },
               backgroundColor: Colors.red,
-              child:
-                  const Icon(Icons.warning_amber_rounded, color: Colors.white),
+              child: const Icon(Icons.sos, color: Colors.white, size: 28),
             ),
           ),
 

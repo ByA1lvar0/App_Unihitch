@@ -62,6 +62,7 @@ class ApiService {
     required int idUniversidad,
     String? carreraNombre,
     String? codigoUniversitario,
+    String? referralCode,
   }) async {
     final response = await http.post(
       Uri.parse('${Config.apiUrl}/register'),
@@ -75,6 +76,8 @@ class ApiService {
         if (carreraNombre != null) 'carrera_nombre': carreraNombre,
         if (codigoUniversitario != null)
           'codigo_universitario': codigoUniversitario,
+        if (referralCode != null && referralCode.isNotEmpty)
+          'referral_code': referralCode,
       }),
     );
 
@@ -109,12 +112,21 @@ class ApiService {
       if (origen != null) url += 'origen=$origen&';
       if (destino != null) url += 'destino=$destino';
     }
-    final response = await http.get(Uri.parse(url));
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
+    } else if (response.statusCode == 401) {
+      throw Exception('Unauthorized');
     } else {
-      throw Exception('Error al cargar viajes');
+      throw Exception('Error al cargar viajes: ${response.statusCode}');
     }
   }
 
@@ -183,19 +195,6 @@ class ApiService {
     }
   }
 
-  // OBTENER ESTADÍSTICAS DE USUARIO
-  static Future<Map<String, dynamic>> getUserStatistics(int userId) async {
-    final response = await http.get(
-      Uri.parse('${Config.apiUrl}/history/statistics/$userId'),
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Error al obtener estadísticas');
-    }
-  }
-
   // MÉTODO GET GENÉRICO
   static Future<Map<String, dynamic>> get(String endpoint) async {
     final response = await http.get(
@@ -227,8 +226,13 @@ class ApiService {
 
   // OBTENER DETALLES DE USUARIO
   static Future<Map<String, dynamic>> getUserDetails(int userId) async {
+    final token = await getToken();
     final response = await http.get(
       Uri.parse('${Config.apiUrl}/users/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
     );
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -237,14 +241,49 @@ class ApiService {
     }
   }
 
+  // ACTUALIZAR PERFIL DE USUARIO
+  static Future<Map<String, dynamic>> updateUser({
+    required int id,
+    required String nombre,
+    required String telefono,
+    required String carrera,
+    required String contactosEmergencia,
+  }) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('${Config.apiUrl}/users/$id'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'nombre': nombre,
+        'telefono': telefono,
+        'carrera': carrera,
+        'contactos_emergencia': contactosEmergencia,
+      }),
+    );
+    if (response.statusCode == 200) {
+      final updatedUser = jsonDecode(response.body);
+      await saveUser(updatedUser); // Update local storage
+      return updatedUser;
+    } else {
+      throw Exception('Error al actualizar perfil');
+    }
+  }
+
   // ACTUALIZAR CONTACTO DE EMERGENCIA
   static Future<void> updateEmergencyContact({
     required int userId,
     required String emergencyNumber,
   }) async {
+    final token = await getToken();
     final response = await http.put(
       Uri.parse('${Config.apiUrl}/users/$userId/emergency'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
       body: jsonEncode({'numero_emergencia': emergencyNumber}),
     );
     if (response.statusCode != 200) {
@@ -297,6 +336,434 @@ class ApiService {
       return jsonDecode(response.body);
     } else {
       return [];
+    }
+  }
+
+  // OBTENER ESTADO DE DOCUMENTOS DEL CONDUCTOR
+  static Future<Map<String, dynamic>> getDriverDocumentStatus(
+      int userId) async {
+    final token = await getToken();
+    final response = await http.get(
+        Uri.parse('${Config.apiUrl}/documentos-conductor/$userId/estado'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        });
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener estado de documentos');
+    }
+  }
+
+  // BUSCAR USUARIOS
+  static Future<List<dynamic>> searchUsers(String query) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/usuarios/search?q=$query'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al buscar usuarios');
+    }
+  }
+
+  // ==================== COMMUNITY METHODS ====================
+
+  // OBTENER MENSAJES DE COMUNIDAD
+  static Future<List<dynamic>> getCommunityMessages(int universidadId) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/community/messages/$universidadId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener mensajes de comunidad');
+    }
+  }
+
+  // ENVIAR MENSAJE A COMUNIDAD
+  static Future<Map<String, dynamic>> sendCommunityMessage({
+    required int userId,
+    required int universidadId,
+    required String mensaje,
+  }) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/community/messages'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'userId': userId,
+        'universidadId': universidadId,
+        'mensaje': mensaje,
+      }),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al enviar mensaje');
+    }
+  }
+
+  // OBTENER MIEMBROS DE COMUNIDAD
+  static Future<List<dynamic>> getCommunityMembers(int universidadId) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/community/members/$universidadId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener miembros');
+    }
+  }
+
+  // OBTENER TODOS LOS USUARIOS VERIFICADOS
+  static Future<List<dynamic>> getAllVerifiedUsers() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/usuarios'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener usuarios');
+    }
+  }
+
+  // CAMBIAR UNIVERSIDAD DE USUARIO
+  static Future<void> changeUserUniversity(
+      int userId, int universidadId) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('${Config.apiUrl}/admin/users/$userId/university'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'id_universidad': universidadId,
+        'verificado': true,
+      }),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Error al cambiar universidad');
+    }
+  }
+
+  // ALIAS PARA COMPATIBILIDAD
+  static Future<Map<String, dynamic>> getDocumentStatus(int userId) async {
+    return getDriverDocumentStatus(userId);
+  }
+
+  // ELIMINAR USUARIO
+  static Future<void> deleteUser(int userId) async {
+    final token = await getToken();
+    final response = await http.delete(
+      Uri.parse('${Config.apiUrl}/admin/users/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Error al eliminar usuario');
+    }
+  }
+
+  // OBTENER USUARIOS PENDIENTES
+  static Future<List<dynamic>> getPendingUsers() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/admin/users/pending'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener usuarios pendientes');
+    }
+  }
+
+  // VERIFICAR USUARIO
+  static Future<void> verifyUser(int userId) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('${Config.apiUrl}/admin/users/$userId/verify'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Error al verificar usuario');
+    }
+  }
+
+  // AGREGAR ADMIN
+  static Future<void> addAdmin(String email) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/admin/add'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'email': email}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Error al agregar administrador');
+    }
+  }
+
+  // CREAR GRUPO DE CARPOOLING
+  static Future<void> createCarpoolingGroup({
+    required int organizadorId,
+    required String rutaComun,
+    required String horarioPreferido,
+    required String tipoGrupo,
+    required double costoTotal,
+    required int numPasajeros,
+    required String descripcion,
+  }) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/carpooling/groups'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'id_organizador': organizadorId,
+        'ruta_comun': rutaComun,
+        'horario_preferido': horarioPreferido,
+        'tipo_grupo': tipoGrupo,
+        'costo_total': costoTotal,
+        'num_pasajeros': numPasajeros,
+        'descripcion': descripcion,
+      }),
+    );
+    if (response.statusCode != 201) {
+      throw Exception('Error al crear grupo de carpooling');
+    }
+  }
+
+  // OBTENER GRUPOS DE CARPOOLING
+  static Future<List<dynamic>> getCarpoolingGroups() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/carpooling/groups'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener grupos de carpooling');
+    }
+  }
+
+  // UNIRSE A GRUPO DE CARPOOLING
+  static Future<void> joinCarpoolingGroup({
+    required int groupId,
+    required int userId,
+  }) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/carpooling/groups/$groupId/join'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'id_usuario': userId}),
+    );
+    if (response.statusCode != 201 && response.statusCode != 200) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? 'Error al unirse al grupo');
+    }
+  }
+
+  // OBTENER ESTADÍSTICAS DE USUARIO
+  static Future<Map<String, dynamic>> getUserStatistics(int userId) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/history/statistics/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener estadísticas');
+    }
+  }
+
+  // OBTENER CONTACTOS DE EMERGENCIA
+  static Future<List<dynamic>> getEmergencyContacts(int userId) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/emergency/contacts/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return [];
+    }
+  }
+
+  // OBTENER CONFIGURACIÓN DE EMERGENCIA
+  static Future<Map<String, dynamic>> getEmergencyConfig(int userId) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/emergency/config/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return {};
+    }
+  }
+
+  // AGREGAR CONTACTO DE EMERGENCIA
+  static Future<bool> addEmergencyContact({
+    required int userId,
+    required String nombre,
+    required String telefono,
+    required String relacion,
+    bool esPrincipal = false,
+  }) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/emergency/contacts'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'nombre': nombre,
+        'telefono': telefono,
+        'relacion': relacion,
+        'es_principal': esPrincipal,
+      }),
+    );
+    return response.statusCode == 201;
+  }
+
+  // ELIMINAR CONTACTO DE EMERGENCIA
+  static Future<bool> deleteEmergencyContact(int contactId) async {
+    final token = await getToken();
+    final response = await http.delete(
+      Uri.parse('${Config.apiUrl}/emergency/contacts/$contactId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    return response.statusCode == 200;
+  }
+
+  // ACTUALIZAR CONFIGURACIÓN DE EMERGENCIA
+  static Future<bool> updateEmergencyConfig({
+    required int userId,
+    required bool autoEnvioUbicacion,
+    required bool notificarUniversidad,
+    required bool grabarAudio,
+    required bool alertasVelocidad,
+  }) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('${Config.apiUrl}/emergency/config/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'auto_envio_ubicacion': autoEnvioUbicacion,
+        'notificar_universidad': notificarUniversidad,
+        'grabar_audio': grabarAudio,
+        'alertas_velocidad': alertasVelocidad,
+      }),
+    );
+    return response.statusCode == 200;
+  }
+
+  // OBTENER NOTIFICACIONES
+  static Future<List<dynamic>> getNotifications(int userId) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/notifications/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener notificaciones');
+    }
+  }
+
+  // ENVIAR ALERTA DE EMERGENCIA
+  static Future<void> sendEmergencyLocation({
+    required int userId,
+    required double latitude,
+    required double longitude,
+  }) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/emergency/alert'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'userId': userId,
+        'latitud': latitude,
+        'longitud': longitude,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error al enviar alerta de emergencia');
     }
   }
 }

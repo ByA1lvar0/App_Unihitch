@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/api_service.dart';
+import 'providers/theme_provider.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -12,14 +19,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'UniHitch',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: const SplashScreen(),
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          title: 'UniHitch',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeProvider.lightTheme,
+          darkTheme: ThemeProvider.darkTheme,
+          themeMode: themeProvider.themeMode,
+          home: const SplashScreen(),
+        );
+      },
     );
   }
 }
@@ -41,7 +51,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _checkLogin() async {
     await Future.delayed(const Duration(seconds: 2));
     final user = await ApiService.getUser();
-    
+
     if (mounted) {
       if (user != null) {
         Navigator.pushReplacement(
