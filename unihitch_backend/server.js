@@ -10,6 +10,9 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Servir archivos estáticos (panel web Leaflet)
+app.use(express.static('public'));
+
 // Import Routes
 const authRoutes = require('./routes/auth.routes');
 const universityRoutes = require('./routes/university.routes');
@@ -28,6 +31,10 @@ const historyRoutes = require('./routes/history.routes');
 const favoritesRoutes = require('./routes/favorites.routes');
 const couponRoutes = require('./routes/coupon.routes');
 const referralRoutes = require('./routes/referral.routes');
+const blockingRoutes = require('./routes/blocking.routes');
+const emergencyRoutes = require('./routes/emergency.routes');
+const carpoolingRoutes = require('./routes/carpooling.routes');
+const routesRoutes = require('./routes/routes.routes');
 
 // Mount Routes
 app.use('/api', authRoutes); // /api/register, /api/login
@@ -48,6 +55,10 @@ app.use('/api/history', historyRoutes); // /api/history...
 app.use('/api/favorites', favoritesRoutes); // /api/favorites...
 app.use('/api/coupons', couponRoutes); // /api/coupons...
 app.use('/api/referrals', referralRoutes); // /api/referrals...
+app.use('/api/blocking', blockingRoutes); // /api/blocking...
+app.use('/api/emergency', emergencyRoutes); // /api/emergency...
+app.use('/api/carpooling', carpoolingRoutes); // /api/carpooling...
+app.use('/api/routes', routesRoutes); // /api/routes...
 
 // Root Endpoint
 app.get('/', (req, res) => {

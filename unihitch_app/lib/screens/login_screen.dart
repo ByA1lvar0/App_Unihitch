@@ -23,7 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await ApiService.login(
-        _correoController.text.trim(),
+        _correoController.text.trim().toLowerCase(),
         _passwordController.text,
       );
 
@@ -36,7 +36,9 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -128,7 +130,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('INICIAR SESIÓN', style: TextStyle(fontSize: 16)),
+                      : const Text('INICIAR SESIÓN',
+                          style: TextStyle(fontSize: 16)),
                 ),
                 const SizedBox(height: 16),
                 // Link a Registro
@@ -136,7 +139,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                      MaterialPageRoute(
+                          builder: (context) => const RegisterScreen()),
                     );
                   },
                   child: const Text('¿No tienes cuenta? Regístrate aquí'),

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniHitch - Monitor de Viajes</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/leaflet-styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>🚗 UniHitch</h1>
+                <p>Monitor de Viajes en Tiempo Real</p>
+            </div>
+
+            <div class="filters">
+                <h3>Filtros</h3>
+                <div class="filter-group">
+                    <label>
+                        <input type="radio" name="status" value="all" checked>
+                        Todos los viajes
+                    </label>
+                    <label>
+                        <input type="radio" name="status" value="DISPONIBLE">
+                        Disponibles
+                    </label>
+                    <label>
+                        <input type="radio" name="status" value="EN_CURSO">
+                        En curso
+                    </label>
+                </div>
+                <button id="refreshBtn" class="btn-refresh">🔄 Actualizar</button>
+            </div>
+
+            <div class="trips-list" id="tripsList">
+                <p class="loading">Cargando viajes...</p>
+            </div>
+        </div>
+
+        <!-- Map Container -->
+        <div class="map-container">
+            <div id="map"></div>
+            
+            <!-- Trip Info Panel (shown when trip selected) -->
+            <div id="tripInfo" class="trip-info hidden">
+                <button class="close-btn" onclick="closeTripInfo()">×</button>
+                <h2 id="tripTitle">Información del Viaje</h2>
+                <div id="tripDetails"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="js/trip-monitor.js"></script>
+</body>
+</html>

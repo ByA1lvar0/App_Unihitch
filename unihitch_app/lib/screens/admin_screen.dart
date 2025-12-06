@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'admin_recharge_approval_screen.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -18,7 +19,7 @@ class _AdminScreenState extends State<AdminScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadPendingUsers();
   }
 
@@ -82,9 +83,13 @@ class _AdminScreenState extends State<AdminScreen>
         title: const Text('Panel de Administrador'),
         bottom: TabBar(
           controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
           tabs: const [
             Tab(text: 'Verificar Usuarios'),
             Tab(text: 'Gestionar Admins'),
+            Tab(text: 'Recargas'),
           ],
         ),
       ),
@@ -166,6 +171,21 @@ class _AdminScreenState extends State<AdminScreen>
                 ),
               ],
             ),
+          ),
+
+          // Tab 3: Recargas
+          FutureBuilder<Map<String, dynamic>?>(
+            future: ApiService.getUser(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasData && snapshot.data != null) {
+                return AdminRechargeApprovalScreen(
+                    adminId: snapshot.data!['id']);
+              }
+              return const Center(child: Text('Error al cargar usuario'));
+            },
           ),
         ],
       ),

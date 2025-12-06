@@ -7,12 +7,14 @@ class ChatScreen extends StatefulWidget {
   final int chatId;
   final String otherUserName;
   final int otherUserId;
+  final String? otherUserUniversity;
 
   const ChatScreen({
     super.key,
     required this.chatId,
     required this.otherUserName,
     required this.otherUserId,
+    this.otherUserUniversity,
   });
 
   @override
@@ -47,11 +49,18 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadMessages({bool silent = false}) async {
     final messages = await MessageService.getMessages(widget.chatId);
     if (mounted) {
+      final bool hasNewMessages = messages.length > _messages.length;
+
       setState(() {
         _messages = messages;
         if (!silent) _isLoading = false;
       });
-      if (!silent) _scrollToBottom();
+
+      // Scroll si no es silencioso (carga inicial) o si hay nuevos mensajes
+      if (!silent || hasNewMessages) {
+        _scrollToBottom();
+        if (hasNewMessages) _markAsRead(); // Marcar como leídos los nuevos
+      }
     }
   }
 
@@ -103,6 +112,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Extract university abbreviation for display
+    String displayName = widget.otherUserName;
+    if (widget.otherUserUniversity != null) {
+      final match =
+          RegExp(r'\(([^)]+)\)').firstMatch(widget.otherUserUniversity!);
+      if (match != null) {
+        final abreviacion = match.group(1);
+        displayName = '${widget.otherUserName} - COMUNIDAD $abreviacion';
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -115,7 +135,12 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            Text(widget.otherUserName),
+            Expanded(
+              child: Text(
+                displayName,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         backgroundColor: Colors.blue.shade600,

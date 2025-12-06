@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' as latlng;
 import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'create_trip_screen.dart';
@@ -8,6 +11,11 @@ import 'settings_screen.dart';
 import 'profile_screen.dart';
 import 'search_trip_screen.dart';
 import 'my_wallet_screen.dart';
+import 'communities_list_screen.dart';
+import 'chat_list_screen.dart';
+import 'admin_screen.dart';
+import 'notifications_screen.dart';
+import 'sos_emergency_screen.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -22,18 +30,125 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _user;
   List<dynamic> _viajes = [];
   bool _isLoading = true;
+  Position? _currentPosition;
+  String _locationText = 'Buscando ubicación...';
+  bool _locationError = false;
+  LocationPermission? _permissionStatus;
+
+  Timer? _notificationTimer;
+  int _unreadNotificationsCount = 0;
+  int _lastNotificationCount = 0;
 
   @override
   void initState() {
     super.initState();
     _checkPermissions();
     _loadData();
+    _startNotificationPolling();
+  }
+
+  @override
+  void dispose() {
+    _notificationTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startNotificationPolling() {
+    _checkNotifications(); // Check immediately
+    _notificationTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _checkNotifications();
+    });
+  }
+
+  Future<void> _checkNotifications() async {
+    if (_user == null) return;
+    try {
+      final notifications = await ApiService.getNotifications(_user!['id']);
+      // Simple logic: if count increases, we have new notifications
+      // In a real app, we would check IDs or 'read' status
+      int currentCount = notifications.length;
+
+      if (mounted) {
+        setState(() {
+          _unreadNotificationsCount = currentCount;
+        });
+
+        if (currentCount > _lastNotificationCount &&
+            _lastNotificationCount != 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('¡Tienes nuevas notificaciones!'),
+              backgroundColor: Colors.blue.shade700,
+              action: SnackBarAction(
+                label: 'VER',
+                textColor: Colors.white,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          NotificationsScreen(userId: _user!['id']),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        }
+        _lastNotificationCount = currentCount;
+      }
+    } catch (e) {
+      print('Error polling notifications: $e');
+    }
   }
 
   Future<void> _checkPermissions() async {
     LocationPermission permission = await Geolocator.checkPermission();
+    if (mounted) {
+      setState(() {
+        _permissionStatus = permission;
+      });
+    }
+
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
+      if (mounted) {
+        setState(() {
+          _permissionStatus = permission;
+        });
+      }
+    }
+
+    if (permission == LocationPermission.whileInUse ||
+        permission == LocationPermission.always) {
+      _getCurrentLocation();
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _locationError = false;
+      _locationText = 'Buscando ubicación...';
+    });
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+      if (mounted) {
+        setState(() {
+          _currentPosition = position;
+          _locationText = 'Ubicación GPS activa';
+          _locationError = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _locationText = 'Error al obtener ubicación';
+          _locationError = true;
+        });
+      }
     }
   }
 
@@ -120,10 +235,23 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       drawer: _buildDrawer(),
       bottomNavigationBar: _buildBottomNavigationBar(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SOSEmergencyScreen(),
+            ),
+          );
+        },
+        backgroundColor: Colors.red.shade600,
+        child: const Icon(Icons.sos, color: Colors.white, size: 32),
+      ),
     );
   }
 
   Widget _buildCustomHeader() {
+    final userName = _user?['nombre']?.split(' ')[0] ?? 'Usuario';
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 50, 8, 16),
       child: Row(
@@ -137,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Hola, ${_user!['nombre'].split(' ')[0]}',
+              'Hola, $userName',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -150,26 +278,32 @@ class _HomeScreenState extends State<HomeScreen> {
               IconButton(
                 icon: const Icon(Icons.notifications_outlined),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('No tienes notificaciones nuevas')),
-                  );
+                  if (_user != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            NotificationsScreen(userId: _user!['id']),
+                      ),
+                    );
+                  }
                 },
                 constraints: const BoxConstraints(),
                 padding: EdgeInsets.zero,
               ),
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
+              if (_unreadNotificationsCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           IconButton(
@@ -194,54 +328,187 @@ class _HomeScreenState extends State<HomeScreen> {
       height: 180,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.blue.shade600,
-            Colors.green.shade600,
-          ],
-        ),
+        border: Border.all(color: Colors.grey.shade300),
       ),
-      child: Stack(
-        children: [
-          // Imagen de fondo simulada con gradiente
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: Colors.blue.shade700.withOpacity(0.3),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            // Mapa Dinámico con Leaflet (flutter_map)
+            if (_currentPosition != null)
+              FlutterMap(
+                options: MapOptions(
+                  initialCenter: latlng.LatLng(
+                    _currentPosition!.latitude,
+                    _currentPosition!.longitude,
+                  ),
+                  initialZoom: 15.0,
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                  ),
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.unihitch.app',
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: latlng.LatLng(
+                          _currentPosition!.latitude,
+                          _currentPosition!.longitude,
+                        ),
+                        width: 40,
+                        height: 40,
+                        child: const Icon(
+                          Icons.location_on,
+                          color: Colors.red,
+                          size: 40,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            else if (_permissionStatus == LocationPermission.denied ||
+                _permissionStatus == LocationPermission.deniedForever)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Colors.grey.shade800, Colors.grey.shade900],
+                  ),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.location_disabled,
+                          color: Colors.white, size: 40),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Ubicación requerida',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _checkPermissions,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Activar'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (_locationError)
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Colors.red.shade800, Colors.red.shade900],
+                  ),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: Colors.white, size: 40),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Error de ubicación',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _getCurrentLocation,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.red,
+                        ),
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              // Fondo de carga si no hay ubicación y no está denegada
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.blue.shade600,
+                      Colors.green.shade600,
+                    ],
+                  ),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+              ),
+
+            // Overlay con gradiente para legibilidad del texto
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.6),
+                      ],
+                      stops: const [0.5, 1.0],
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          // Contenido overlay
-          Positioned(
-            left: 16,
-            bottom: 16,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildInfoItem(
-                  Icons.location_on,
-                  'Mi ubicación actual',
-                  color: Colors.white,
+
+            // Contenido overlay (Texto)
+            Positioned(
+              left: 16,
+              bottom: 16,
+              child: IgnorePointer(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildInfoItem(
+                      Icons.location_on,
+                      _locationText,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildInfoItem(
+                      Icons.directions_car,
+                      '$_viajesCerca viajes cerca',
+                      color: Colors.white,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildInfoItem(
+                      Icons.people,
+                      '2 compañeros online',
+                      color: Colors.white,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                _buildInfoItem(
-                  Icons.directions_car,
-                  '$_viajesCerca viajes cerca',
-                  color: Colors.white,
-                ),
-                const SizedBox(height: 8),
-                _buildInfoItem(
-                  Icons.people,
-                  '2 compañeros online',
-                  color: Colors.white,
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -274,7 +541,6 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: () {
-                // Scroll a lista de viajes
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Buscando viajes...')),
                 );
@@ -376,14 +642,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildViajeCard(Map<String, dynamic> viaje) {
     final fecha = DateTime.parse(viaje['fecha_hora']);
-    final ahora = DateTime.now();
-    final diferencia = fecha.difference(ahora);
-    final minutosRestantes = diferencia.inMinutes;
-    final asientosTotales = (viaje['asientos_disponibles'] as int) +
-        (viaje['asientos_totales'] ?? viaje['asientos_disponibles'] + 2) -
-        viaje['asientos_disponibles'];
-    final asientosUsados =
-        asientosTotales - (viaje['asientos_disponibles'] as int);
+    // final ahora = DateTime.now();
+    // final diferencia = fecha.difference(ahora);
+    // final minutosRestantes = diferencia.inMinutes; // Unused
+    // final asientosTotales = (viaje['asientos_disponibles'] as int) +
+    //     (viaje['asientos_totales'] ?? viaje['asientos_disponibles'] + 2) -
+    //     viaje['asientos_disponibles'];
+    // final asientosUsados = asientosTotales - (viaje['asientos_disponibles'] as int); // Unused
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -451,72 +716,75 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     '${viaje['carrera'] ?? 'Estudiante'} - ${viaje['universidad'] ?? 'Universidad'}',
                     style: TextStyle(
-                      fontSize: 12,
                       color: Colors.grey.shade600,
+                      fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.access_time,
-                          size: 14, color: Colors.grey.shade600),
+                      const Icon(Icons.location_on,
+                          size: 16, color: Colors.grey),
                       const SizedBox(width: 4),
                       Text(
-                        'Sale en $minutosRestantes min',
+                        viaje['origen'],
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      const Icon(Icons.arrow_forward,
+                          size: 16, color: Colors.grey),
+                      Text(
+                        viaje['destino'],
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Salida: ${DateFormat('HH:mm').format(fecha)}',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
+                          color: Colors.blue.shade700,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Icon(Icons.people, size: 14, color: Colors.grey.shade600),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$asientosUsados/${asientosTotales} asientos',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '\$${viaje['costo']}',
+                          style: TextStyle(
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            // Precio y Botón
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  'S/ ${viaje['precio'].toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: 70,
-                  child: ElevatedButton(
-                    onPressed: viaje['asientos_disponibles'] > 0
-                        ? () => _reservarViaje(viaje['id'])
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade600,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _reservarViaje(viaje['id']),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade600,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Reservar',
+                        style: TextStyle(color: Colors.white),
                       ),
                     ),
-                    child: const Text(
-                      'Ver',
-                      style: TextStyle(fontSize: 12),
-                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -525,6 +793,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDrawer() {
+    final userName = _user?['nombre'] ?? 'Usuario';
+    final userEmail = _user?['correo'] ?? 'correo@ejemplo.com';
+    final userInitial = userName.isNotEmpty ? userName[0].toUpperCase() : 'U';
+    final bool isAdmin = _user?['es_admin'] == true || _user?['es_admin'] == 1;
+    final bool isExternalAgent = _user?['es_agente_externo'] == true;
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -537,31 +811,28 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 CircleAvatar(
+                  radius: 30,
                   backgroundColor: Colors.white,
                   child: Text(
-                    _user!['nombre'][0].toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 24,
-                      color: Colors.blue.shade700,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    userInitial,
+                    style: TextStyle(fontSize: 24, color: Colors.blue.shade600),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Text(
-                  _user!['nombre'],
+                  userName,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Text(
-                  _user!['correo'],
+                  userEmail,
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
@@ -571,19 +842,37 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.home),
-            title: const Text('Inicio'),
-            selected: _selectedIndex == 0,
+            leading: const Icon(Icons.person),
+            title: const Text('Mi Perfil'),
             onTap: () {
               Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('Mis Viajes'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MyTripsScreen()),
+              );
             },
           ),
           ListTile(
             leading: const Icon(Icons.search),
-            title: const Text('Buscar'),
+            title: const Text('Buscar Viaje'),
             onTap: () {
               Navigator.pop(context);
-              setState(() => _selectedIndex = 1);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const SearchTripScreen()),
+              );
             },
           ),
           ListTile(
@@ -599,20 +888,8 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.list_alt),
-            title: const Text('Mis Viajes'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const MyTripsScreen()),
-              );
-            },
-          ),
-          const Divider(),
-          ListTile(
             leading: const Icon(Icons.account_balance_wallet),
-            title: const Text('Mi Wallet'),
+            title: const Text('Billetera'),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
@@ -621,6 +898,48 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
+          if (!isExternalAgent)
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Comunidades'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const CommunitiesListScreen()),
+                );
+              },
+            ),
+          ListTile(
+            leading: const Icon(Icons.chat),
+            title: const Text('Chats'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ChatListScreen()),
+              );
+            },
+          ),
+          if (isAdmin) ...[
+            const Divider(),
+            ListTile(
+              leading:
+                  const Icon(Icons.admin_panel_settings, color: Colors.orange),
+              title: const Text('Panel de Administrador',
+                  style: TextStyle(
+                      color: Colors.orange, fontWeight: FontWeight.bold)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AdminScreen()),
+                );
+              },
+            ),
+          ],
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Configuración'),
@@ -633,23 +952,13 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.help_outline),
-            title: const Text('Ayuda'),
+            leading: const Icon(Icons.exit_to_app, color: Colors.red),
+            title: const Text('Cerrar Sesión',
+                style: TextStyle(color: Colors.red)),
             onTap: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Ayuda')),
-              );
+              _logout();
             },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text(
-              'Cerrar Sesión',
-              style: TextStyle(color: Colors.red),
-            ),
-            onTap: _logout,
           ),
         ],
       ),
@@ -663,58 +972,30 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _selectedIndex = index;
         });
-
         if (index == 1) {
-          // Buscar
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const SearchTripScreen()),
-          ).then((_) => setState(() => _selectedIndex = 0));
+          );
         } else if (index == 2) {
-          // Ofrecer viaje
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const CreateTripScreen()),
           ).then((_) => _loadData());
-        } else if (index == 3) {
-          // Chat
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Chat - 2 mensajes no leídos')),
-          );
-        } else if (index == 4) {
-          // Perfil
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ProfileScreen()),
-          ).then((_) => _loadData());
         }
       },
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: Colors.blue.shade600,
-      unselectedItemColor: Colors.grey,
-      items: [
-        const BottomNavigationBarItem(
+      items: const [
+        BottomNavigationBarItem(
           icon: Icon(Icons.home),
           label: 'Inicio',
         ),
-        const BottomNavigationBarItem(
+        BottomNavigationBarItem(
           icon: Icon(Icons.search),
           label: 'Buscar',
         ),
-        const BottomNavigationBarItem(
+        BottomNavigationBarItem(
           icon: Icon(Icons.add_circle_outline),
-          label: 'Ofrecer',
-        ),
-        const BottomNavigationBarItem(
-          icon: Badge(
-            label: Text('2'),
-            child: Icon(Icons.chat_bubble_outline),
-          ),
-          label: 'Chat',
-        ),
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Perfil',
+          label: 'Publicar',
         ),
       ],
     );
