@@ -7,10 +7,23 @@ const register = async (req, res) => {
     try {
         const { nombre, correo, password, telefono, id_universidad, id_carrera, carrera_nombre, codigo_universitario } = req.body;
 
-        const userExists = await pool.query('SELECT * FROM usuario WHERE correo = $1', [correo]);
+        // NORMALIZAR CORREO A MINÚSCULAS
+        const correoNormalizado = correo.toLowerCase().trim();
+
+        // Verificar si el correo ya está registrado
+        const userExists = await pool.query('SELECT * FROM usuario WHERE correo = $1', [correoNormalizado]);
         if (userExists.rows.length > 0) {
             client.release();
-            return res.status(400).json({ error: 'Este correo ya está registrado' });
+            return res.status(400).json({ error: 'El correo electrónico ya está registrado. Intenta iniciar sesión.' });
+        }
+
+        // Verificar si el teléfono ya está registrado
+        if (telefono) {
+            const phoneExists = await pool.query('SELECT * FROM usuario WHERE telefono = $1', [telefono]);
+            if (phoneExists.rows.length > 0) {
+                client.release();
+                return res.status(400).json({ error: 'El número de teléfono ya está registrado.' });
+            }
         }
 
         await client.query('BEGIN');
@@ -30,10 +43,16 @@ const register = async (req, res) => {
                 universidad_nombre = uniResult.rows[0].nombre;
                 const dominios = uniResult.rows[0].dominio; // Ahora es un array
                 // Si el correo coincide con alguno de los dominios universitarios
-                if (dominios && Array.isArray(dominios) && dominios.some(d => correo.endsWith(d))) {
+                if (dominios && Array.isArray(dominios) && dominios.some(d => correoNormalizado.endsWith(d))) {
                     verificado = true;
                     tipo_usuario = 'UNIVERSITARIO';
                     es_agente_externo = false;
+                } else {
+                    // Si seleccionó universidad pero el correo no coincide
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        error: `El correo institucional no pertenece a ${universidad_nombre}. Por favor verifica tu correo o la universidad seleccionada.`
+                    });
                 }
             }
 
@@ -61,7 +80,7 @@ const register = async (req, res) => {
             // Verificar que el correo NO sea de ningún dominio universitario registrado
             const allUniversities = await client.query('SELECT dominio FROM universidad WHERE dominio IS NOT NULL');
             const isUniversityEmail = allUniversities.rows.some(uni =>
-                uni.dominio && Array.isArray(uni.dominio) && uni.dominio.some(d => correo.endsWith(d))
+                uni.dominio && Array.isArray(uni.dominio) && uni.dominio.some(d => correoNormalizado.endsWith(d))
             );
 
             if (isUniversityEmail) {
@@ -78,12 +97,21 @@ const register = async (req, res) => {
             `INSERT INTO usuario (nombre, correo, password, telefono, id_universidad, id_carrera, codigo_universitario, verificado, tipo_usuario, es_agente_externo) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
        RETURNING id, nombre, correo, telefono, rol, verificado, id_universidad, id_carrera, codigo_universitario, tipo_usuario, es_agente_externo`,
-            [nombre, correo, hashedPassword, telefono, id_universidad || null, final_id_carrera || null, codigo_universitario || null, verificado, tipo_usuario, es_agente_externo]
+            [nombre, correoNormalizado, hashedPassword, telefono, id_universidad || null, final_id_carrera || null, codigo_universitario || null, verificado, tipo_usuario, es_agente_externo]
         );
 
         const user = result.rows[0];
 
-        // Note: Wallet is auto-created by database trigger
+        // Create wallet for new user (idempotent - won't fail if already exists)
+        // Check if wallet already exists (to avoid unique violation errors)
+        const walletCheck = await client.query('SELECT id FROM wallet WHERE id_usuario = $1', [user.id]);
+
+        if (walletCheck.rows.length === 0) {
+            await client.query(
+                'INSERT INTO wallet (id_usuario, saldo) VALUES ($1, 0.00)',
+                [user.id]
+            );
+        }
 
         // Procesar código de referido si existe
         const { referral_code } = req.body;
@@ -112,9 +140,23 @@ const register = async (req, res) => {
                             [referrerId]
                         );
 
+                        // Crear transacción para el referidor
+                        await client.query(
+                            `INSERT INTO transaccion (id_usuario, tipo, monto, descripcion) 
+                             VALUES ($1, 'REFERIDO', 5.00, $2)`,
+                            [referrerId, `Recompensa por referir a ${nombre}`]
+                        );
+
                         // Agregar S/. 3 al nuevo usuario
                         await client.query(
                             'UPDATE wallet SET saldo = saldo + 3 WHERE id_usuario = $1',
+                            [user.id]
+                        );
+
+                        // Crear transacción para el nuevo usuario
+                        await client.query(
+                            `INSERT INTO transaccion (id_usuario, tipo, monto, descripcion) 
+                             VALUES ($1, 'BIENVENIDA', 3.00, 'Bono de bienvenida por registro con código de referido')`,
                             [user.id]
                         );
                     }
@@ -139,12 +181,36 @@ const register = async (req, res) => {
 
         // Agregar nombre de universidad al objeto usuario
         user.universidad_nombre = universidad_nombre;
+        user.es_admin = user.rol === 'ADMIN'; // Campo para el frontend
 
         res.json({ user, token });
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error(error);
-        res.status(500).json({ error: 'Error al registrar usuario' });
+        console.error('Error en registro:', error);
+
+        // Manejar errores específicos
+        if (error.code === '23505') {
+            // Violación de constraint único
+            if (error.constraint === 'usuario_correo_key') {
+                return res.status(400).json({ error: 'El correo electrónico ya está registrado. Intenta iniciar sesión.' });
+            }
+            if (error.constraint === 'usuario_telefono_key') {
+                return res.status(400).json({ error: 'El número de teléfono ya está registrado.' });
+            }
+        }
+
+        if (error.code === '23514') {
+            // Violación de check constraint
+            if (error.constraint === 'check_external_no_university') {
+                return res.status(400).json({ error: 'Los agentes externos no pueden tener universidad asignada.' });
+            }
+        }
+
+        // Error genérico
+        res.status(500).json({
+            error: 'Error al registrar usuario. Por favor, verifica tus datos e intenta nuevamente.',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     } finally {
         client.release();
     }
@@ -154,23 +220,26 @@ const login = async (req, res) => {
     try {
         const { correo, password } = req.body;
 
+        // NORMALIZAR CORREO A MINÚSCULAS
+        const correoNormalizado = correo.toLowerCase().trim();
+
         // Join con universidad para obtener el nombre
         const result = await pool.query(`
             SELECT u.*, uni.nombre as universidad_nombre 
             FROM usuario u 
             LEFT JOIN universidad uni ON u.id_universidad = uni.id 
-            WHERE u.correo = $1
-        `, [correo]);
+            WHERE LOWER(u.correo) = $1
+        `, [correoNormalizado]);
 
         if (result.rows.length === 0) {
-            return res.status(401).json({ error: 'Credenciales incorrectas' });
+            return res.status(401).json({ error: 'Correo electrónico no registrado. Verifica tu correo o regístrate.' });
         }
 
         const user = result.rows[0];
 
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
-            return res.status(401).json({ error: 'Credenciales incorrectas' });
+            return res.status(401).json({ error: 'Contraseña incorrecta. Inténtalo nuevamente.' });
         }
 
         const token = jwt.sign({
@@ -196,7 +265,8 @@ const login = async (req, res) => {
                 universidad_nombre: user.universidad_nombre, // Incluir nombre de universidad
                 id_carrera: user.id_carrera,
                 tipo_usuario: user.tipo_usuario || 'UNIVERSITARIO',
-                es_agente_externo: user.es_agente_externo || false
+                es_agente_externo: user.es_agente_externo || false,
+                es_admin: user.rol === 'ADMIN' // Campo para el frontend
             },
             token
         });

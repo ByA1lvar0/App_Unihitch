@@ -8,9 +8,9 @@ const authMiddleware = require('../middleware/auth.middleware');
 
 router.use(authMiddleware);
 
-// Solo universitarios pueden buscar y ver viajes disponibles
-router.get('/', blockExternalUsers, tripController.getTrips);
-router.get('/search', blockExternalUsers, tripController.searchTrips);
+// Todos pueden buscar y ver viajes disponibles
+router.get('/', tripController.getTrips);
+router.get('/search', tripController.searchTrips);
 
 // Todos pueden crear viajes PERO deben tener documentos aprobados (SOAT, Licencia)
 router.post('/', createTripValidation, verifyDriverDocuments, tripController.createTrip);

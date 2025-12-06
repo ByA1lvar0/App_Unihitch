@@ -64,10 +64,6 @@ class _SOSEmergencyScreenState extends State<SOSEmergencyScreen> {
           longitude: _currentPosition!.longitude,
         );
 
-        setState(() {
-          _locationShared = true;
-        });
-
         // 3. Obtener contactos de emergencia
         final contacts = await ApiService.getEmergencyContacts(user['id']);
 
@@ -82,41 +78,72 @@ class _SOSEmergencyScreenState extends State<SOSEmergencyScreen> {
           return;
         }
 
-        // 4. Preguntar método de envío
-        if (mounted) {
-          showModalBottomSheet(
-            context: context,
-            builder: (context) => Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Enviar ubicación vía:',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  ListTile(
-                    leading: const Icon(Icons.sms, color: Colors.blue),
-                    title: const Text('SMS (A todos los contactos)'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _sendSMS(contacts);
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.message,
-                        color: Colors.green), // WhatsApp icon replacement
-                    title: const Text('WhatsApp (Contacto principal)'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _sendWhatsApp(contacts);
-                    },
-                  ),
-                ],
+        // 4. Obtener preferencia del usuario
+        final preference = await ApiService.getEmergencyPreference(user['id']);
+        final metodoPreferido = preference['metodo_preferido'] ?? 'WHATSAPP';
+
+        // 5. Intentar envío con método preferido y fallback automático
+        bool enviado = false;
+
+        if (metodoPreferido == 'WHATSAPP') {
+          // Intentar WhatsApp primero
+          enviado = await _tryWhatsApp(contacts);
+          if (!enviado) {
+            // Fallback a SMS
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('WhatsApp no disponible, enviando por SMS...'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+            await Future.delayed(const Duration(milliseconds: 500));
+            enviado = await _trySMS(contacts);
+          }
+        } else {
+          // Intentar SMS primero
+          enviado = await _trySMS(contacts);
+          if (!enviado) {
+            // Fallback a WhatsApp
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('SMS no disponible, enviando por WhatsApp...'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+            await Future.delayed(const Duration(milliseconds: 500));
+            enviado = await _tryWhatsApp(contacts);
+          }
+        }
+
+        if (enviado) {
+          setState(() {
+            _locationShared = true;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content:
+                    Text('✅ Ubicación compartida con contactos de emergencia'),
+                backgroundColor: Colors.green,
               ),
-            ),
-          );
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'No se pudo enviar la ubicación. Intenta manualmente.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       } catch (e) {
         print('Error sharing location: $e');
@@ -133,53 +160,71 @@ class _SOSEmergencyScreenState extends State<SOSEmergencyScreen> {
     }
   }
 
-  Future<void> _sendSMS(List<dynamic> contacts) async {
-    final numbers = contacts.map((c) => c['telefono']).join(',');
-    final mapLink =
-        'https://maps.google.com/?q=${_currentPosition!.latitude},${_currentPosition!.longitude}';
-    final message = 'SOS! Necesito ayuda. Mi ubicación es: $mapLink';
+  Future<bool> _trySMS(List<dynamic> contacts) async {
+    try {
+      final numbers = contacts.map((c) => c['telefono']).join(',');
+      final mapLink =
+          'https://maps.google.com/?q=${_currentPosition!.latitude},${_currentPosition!.longitude}';
+      final message =
+          '🆘 EMERGENCIA! Necesito ayuda urgente. Mi ubicación: $mapLink';
 
-    final Uri smsUri = Uri(
-      scheme: 'sms',
-      path: numbers,
-      queryParameters: {'body': message},
-    );
+      final Uri smsUri = Uri(
+        scheme: 'sms',
+        path: numbers,
+        queryParameters: {'body': message},
+      );
 
-    if (await canLaunchUrl(smsUri)) {
-      await launchUrl(smsUri);
-    } else {
-      // Fallback for some Android devices
+      if (await canLaunchUrl(smsUri)) {
+        await launchUrl(smsUri);
+        return true;
+      }
+
+      // Fallback for Android
       final Uri smsUriAndroid = Uri.parse('sms:$numbers?body=$message');
       if (await canLaunchUrl(smsUriAndroid)) {
         await launchUrl(smsUriAndroid);
+        return true;
       }
+
+      return false;
+    } catch (e) {
+      print('Error sending SMS: $e');
+      return false;
     }
   }
 
-  Future<void> _sendWhatsApp(List<dynamic> contacts) async {
-    // Buscar contacto principal o usar el primero
-    final mainContact = contacts.firstWhere(
-      (c) => c['es_principal'] == true,
-      orElse: () => contacts.first,
-    );
+  Future<bool> _tryWhatsApp(List<dynamic> contacts) async {
+    try {
+      final mapLink =
+          'https://maps.google.com/?q=${_currentPosition!.latitude},${_currentPosition!.longitude}';
+      final message =
+          '🆘 EMERGENCIA! Necesito ayuda urgente. Mi ubicación actual: $mapLink';
 
-    final number = mainContact['telefono'];
-    final mapLink =
-        'https://maps.google.com/?q=${_currentPosition!.latitude},${_currentPosition!.longitude}';
-    final message = 'SOS! Necesito ayuda. Mi ubicación es: $mapLink';
+      // Enviar a ambos contactos
+      bool enviado = false;
+      for (var contact in contacts) {
+        final number =
+            contact['telefono']?.toString().replaceAll(RegExp(r'[^0-9]'), '');
+        if (number == null || number.isEmpty) continue;
 
-    // WhatsApp URL format
-    final whatsappUrl =
-        Uri.parse('https://wa.me/$number?text=${Uri.encodeComponent(message)}');
+        // WhatsApp URL format
+        final whatsappUrl = Uri.parse(
+            'https://wa.me/$number?text=${Uri.encodeComponent(message)}');
 
-    if (await canLaunchUrl(whatsappUrl)) {
-      await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo abrir WhatsApp')),
-        );
+        if (await canLaunchUrl(whatsappUrl)) {
+          await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+          enviado = true;
+          // Pequeña pausa entre envíos
+          if (contacts.indexOf(contact) < contacts.length - 1) {
+            await Future.delayed(const Duration(milliseconds: 800));
+          }
+        }
       }
+
+      return enviado;
+    } catch (e) {
+      print('Error sending WhatsApp: $e');
+      return false;
     }
   }
 

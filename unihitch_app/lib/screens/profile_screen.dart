@@ -3,13 +3,32 @@ import '../services/api_service.dart';
 import 'edit_profile_screen.dart';
 import 'trip_history_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late Future<Map<String, dynamic>?> _userFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _userFuture = ApiService.getUser();
+  }
+
+  void _refreshUser() {
+    setState(() {
+      _userFuture = ApiService.getUser();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>?>(
-      future: ApiService.getUser(),
+      future: _userFuture,
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Scaffold(
@@ -25,13 +44,16 @@ class ProfileScreen extends StatelessWidget {
             actions: [
               IconButton(
                 icon: const Icon(Icons.edit),
-                onPressed: () {
-                  Navigator.push(
+                onPressed: () async {
+                  final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => EditProfileScreen(user: user),
                     ),
                   );
+                  if (result == true) {
+                    _refreshUser();
+                  }
                 },
               ),
             ],
@@ -66,7 +88,10 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     const Icon(Icons.school, color: Colors.blue),
                     const SizedBox(width: 4),
-                    Text('Medicina - UNP'),
+                    Text(
+                      '${user['carrera'] ?? 'Sin carrera'} - ${user['universidad_nombre'] ?? ''}',
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -84,7 +109,7 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     const Icon(Icons.phone, color: Colors.blue),
                     const SizedBox(width: 4),
-                    Text(user['telefono'] ?? '+51 987 654 321'),
+                    Text(user['telefono'] ?? 'Sin teléfono'),
                   ],
                 ),
                 const SizedBox(height: 32),

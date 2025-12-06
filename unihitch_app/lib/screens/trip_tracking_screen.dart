@@ -192,7 +192,8 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
       );
 
       // Obtener la ruta desde Google Directions API
-      final routePoints = await DirectionsService.getRoute(origin, destination);
+      final routeData = await DirectionsService.getRoute(origin, destination);
+      final routePoints = routeData['points'] as List<LatLng>;
 
       if (routePoints.isNotEmpty) {
         setState(() {

@@ -4,6 +4,12 @@ const getWallet = async (req, res) => {
     try {
         const { userId } = req.params;
 
+        // First, verify the user exists
+        const userCheck = await pool.query('SELECT id FROM usuario WHERE id = $1', [userId]);
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
         // Verificar si existe wallet, si no, crear uno
         let wallet = await pool.query('SELECT * FROM wallet WHERE id_usuario = $1', [userId]);
 
@@ -79,6 +85,13 @@ const rechargeManual = async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, 'PENDIENTE') 
        RETURNING id, estado, fecha_solicitud`,
             [id_usuario, monto, metodo, comprobante_base64, numero_operacion]
+        );
+
+        // Crear notificación de confirmación
+        await pool.query(
+            `INSERT INTO notificacion (id_usuario, titulo, mensaje, tipo) 
+         VALUES ($1, 'Solicitud de Recarga Recibida', $2, 'SYSTEM')`,
+            [id_usuario, `Tu solicitud de recarga de S/ ${monto} ha sido recibida y está siendo revisada. Te notificaremos cuando sea aprobada.`]
         );
 
         res.json({
@@ -194,6 +207,15 @@ const rejectRecharge = async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Solicitud no encontrada o ya procesada' });
         }
+
+        const { id_usuario, monto } = result.rows[0];
+
+        // Crear notificación de rechazo
+        await pool.query(
+            `INSERT INTO notificacion (id_usuario, titulo, mensaje, tipo) 
+         VALUES ($1, 'Recarga Rechazada', $2, 'SYSTEM')`,
+            [id_usuario, `Tu solicitud de recarga de S/ ${monto} fue rechazada. Motivo: ${motivo_rechazo || 'Comprobante inválido'}. Por favor, intenta nuevamente con un comprobante válido.`]
+        );
 
         res.json({ mensaje: 'Recarga rechazada', motivo: motivo_rechazo });
     } catch (error) {

@@ -192,6 +192,59 @@ const sendEmergencyAlert = async (req, res) => {
     }
 };
 
+// Get emergency method preference (WHATSAPP or SMS)
+const getEmergencyPreference = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const result = await pool.query(
+            'SELECT metodo_emergencia_preferido FROM usuario WHERE id = $1',
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json({
+            metodo_preferido: result.rows[0].metodo_emergencia_preferido || 'WHATSAPP'
+        });
+    } catch (error) {
+        console.error('Error getting emergency preference:', error);
+        res.status(500).json({ error: 'Error al obtener preferencia de emergencia' });
+    }
+};
+
+// Update emergency method preference
+const updateEmergencyPreference = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { metodo_preferido } = req.body;
+
+        // Validate method
+        if (!['WHATSAPP', 'SMS'].includes(metodo_preferido)) {
+            return res.status(400).json({ error: 'Método inválido. Debe ser WHATSAPP o SMS' });
+        }
+
+        const result = await pool.query(
+            'UPDATE usuario SET metodo_emergencia_preferido = $1 WHERE id = $2 RETURNING metodo_emergencia_preferido',
+            [metodo_preferido, userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json({
+            success: true,
+            metodo_preferido: result.rows[0].metodo_emergencia_preferido
+        });
+    } catch (error) {
+        console.error('Error updating emergency preference:', error);
+        res.status(500).json({ error: 'Error al actualizar preferencia de emergencia' });
+    }
+};
+
 module.exports = {
     getEmergencyContacts,
     addEmergencyContact,
@@ -199,5 +252,7 @@ module.exports = {
     deleteEmergencyContact,
     getEmergencyConfig,
     updateEmergencyConfig,
-    sendEmergencyAlert
+    sendEmergencyAlert,
+    getEmergencyPreference,
+    updateEmergencyPreference
 };

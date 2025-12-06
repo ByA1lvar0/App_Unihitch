@@ -15,4 +15,8 @@ router.put('/config/:userId', emergencyController.updateEmergencyConfig);
 // Emergency Alert
 router.post('/alert', emergencyController.sendEmergencyAlert);
 
+// Emergency Method Preference
+router.get('/preference/:userId', emergencyController.getEmergencyPreference);
+router.put('/preference/:userId', emergencyController.updateEmergencyPreference);
+
 module.exports = router;

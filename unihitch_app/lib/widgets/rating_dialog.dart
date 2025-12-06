@@ -43,12 +43,12 @@ class _RatingDialogState extends State<RatingDialog> {
     });
 
     try {
-      await ApiService.submitRating(
-        idViaje: widget.idViaje,
-        idCalificador: widget.idCalificador,
-        idCalificado: widget.idCalificado,
-        puntuacion: _rating,
-        comentario: _commentController.text.trim(),
+      await ApiService.rateUser(
+        tripId: widget.idViaje,
+        authorId: widget.idCalificador,
+        targetUserId: widget.idCalificado,
+        rating: _rating,
+        comment: _commentController.text.trim(),
       );
 
       if (mounted) {

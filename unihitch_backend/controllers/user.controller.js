@@ -97,7 +97,7 @@ const getUser = async (req, res) => {
         const { id } = req.params;
         const result = await pool.query(
             `SELECT u.id, u.nombre, u.correo, u.telefono, u.rol, u.verificado, 
-              u.foto_perfil, u.carrera, u.numero_emergencia, u.calificacion_promedio,
+              u.foto_perfil, u.carrera, u.numero_emergencia, u.contactos_emergencia, u.calificacion_promedio,
               u.id_universidad, u.id_carrera, uni.nombre as universidad_nombre
        FROM usuario u
        LEFT JOIN universidad uni ON u.id_universidad = uni.id

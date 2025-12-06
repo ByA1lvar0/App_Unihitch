@@ -18,6 +18,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _emergencyContact1Controller;
   late TextEditingController _emergencyContact2Controller;
   bool _isLoading = false;
+  String _metodoPreferido = 'WHATSAPP';
 
   @override
   void initState() {
@@ -35,6 +36,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         TextEditingController(text: contacts.isNotEmpty ? contacts[0] : '');
     _emergencyContact2Controller =
         TextEditingController(text: contacts.length > 1 ? contacts[1] : '');
+
+    // Load emergency preference
+    _loadEmergencyPreference();
+  }
+
+  Future<void> _loadEmergencyPreference() async {
+    try {
+      final preference =
+          await ApiService.getEmergencyPreference(widget.user['id']);
+      setState(() {
+        _metodoPreferido = preference['metodo_preferido'] ?? 'WHATSAPP';
+      });
+    } catch (e) {
+      print('Error loading emergency preference: $e');
+    }
   }
 
   @override
@@ -58,6 +74,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
 
     try {
+      // Update user profile
       await ApiService.updateUser(
         id: widget.user['id'],
         nombre: _nombreController.text.trim(),
@@ -67,6 +84,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _emergencyContact1Controller.text.trim(),
           _emergencyContact2Controller.text.trim()
         ].where((c) => c.isNotEmpty).join(','),
+      );
+
+      // Update emergency preference
+      await ApiService.updateEmergencyPreference(
+        widget.user['id'],
+        _metodoPreferido,
       );
 
       if (mounted) {
@@ -99,6 +122,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isExternalAgent = widget.user['es_agente_externo'] == true;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Editar Perfil'),
@@ -176,18 +201,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _carreraController,
-                decoration: InputDecoration(
-                  labelText: 'Carrera / Facultad',
-                  prefixIcon: const Icon(Icons.school),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+              if (!isExternalAgent) ...[
+                TextFormField(
+                  controller: _carreraController,
+                  decoration: InputDecoration(
+                    labelText: 'Carrera / Facultad',
+                    prefixIcon: const Icon(Icons.school),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    hintText: 'Ej. Ingeniería de Sistemas',
                   ),
-                  hintText: 'Ej. Ingeniería de Sistemas',
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
               TextFormField(
                 controller: _telefonoController,
                 decoration: InputDecoration(
@@ -243,6 +270,61 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   hintText: 'Ej. Papá: 999888777',
                 ),
                 keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Configuración de Emergencia',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _metodoPreferido,
+                decoration: InputDecoration(
+                  labelText: 'Método de envío preferido',
+                  prefixIcon: Icon(
+                    _metodoPreferido == 'WHATSAPP' ? Icons.message : Icons.sms,
+                    color: _metodoPreferido == 'WHATSAPP'
+                        ? Colors.green
+                        : Colors.blue,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  helperText: 'Si falla, se usará el otro método como respaldo',
+                  helperMaxLines: 2,
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'WHATSAPP',
+                    child: Row(
+                      children: [
+                        Icon(Icons.message, color: Colors.green, size: 20),
+                        SizedBox(width: 8),
+                        Text('WhatsApp'),
+                      ],
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'SMS',
+                    child: Row(
+                      children: [
+                        Icon(Icons.sms, color: Colors.blue, size: 20),
+                        SizedBox(width: 8),
+                        Text('SMS'),
+                      ],
+                    ),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _metodoPreferido = value;
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 16),
               TextFormField(

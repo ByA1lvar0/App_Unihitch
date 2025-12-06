@@ -59,7 +59,7 @@ class ApiService {
     required String correo,
     required String password,
     required String telefono,
-    required int idUniversidad,
+    int? idUniversidad,
     String? carreraNombre,
     String? codigoUniversitario,
     String? referralCode,
@@ -72,7 +72,7 @@ class ApiService {
         'correo': correo,
         'password': password,
         'telefono': telefono,
-        'id_universidad': idUniversidad,
+        if (idUniversidad != null) 'id_universidad': idUniversidad,
         if (carreraNombre != null) 'carrera_nombre': carreraNombre,
         if (codigoUniversitario != null)
           'codigo_universitario': codigoUniversitario,
@@ -764,6 +764,183 @@ class ApiService {
 
     if (response.statusCode != 200) {
       throw Exception('Error al enviar alerta de emergencia');
+    }
+  }
+
+  // VERIFICAR CÓDIGO DE EMAIL
+  static Future<void> verifyEmailCode({
+    required int userId,
+    required String code,
+  }) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/auth/verify-email'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'userId': userId,
+        'code': code,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      final error = jsonDecode(response.body)['error'] ?? 'Código inválido';
+      throw Exception(error);
+    }
+  }
+
+  // REENVIAR CÓDIGO DE VERIFICACIÓN
+  static Future<void> resendVerificationCode(int userId) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/auth/resend-verification'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'userId': userId}),
+    );
+
+    if (response.statusCode != 200) {
+      final error =
+          jsonDecode(response.body)['error'] ?? 'Error al reenviar código';
+      throw Exception(error);
+    }
+  }
+
+  // ACTUALIZAR UBICACIÓN DE USUARIO EN VIAJE
+  static Future<void> updateUserLocation({
+    required int userId,
+    required int tripId,
+    required double latitude,
+    required double longitude,
+  }) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/viajes/$tripId/ubicacion'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'userId': userId,
+        'latitud': latitude,
+        'longitud': longitude,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error al actualizar ubicación');
+    }
+  }
+
+  // OBTENER UBICACIONES DE VIAJE
+  static Future<Map<String, dynamic>> getTripLocations(int tripId) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/viajes/$tripId/ubicaciones'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener ubicaciones del viaje');
+    }
+  }
+
+  // CALIFICAR USUARIO
+  static Future<void> rateUser({
+    required int tripId,
+    required int authorId,
+    required int targetUserId,
+    required int rating,
+    String? comment,
+  }) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/ratings'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'id_viaje': tripId,
+        'id_autor': authorId,
+        'id_usuario_calificado': targetUserId,
+        'calificacion': rating,
+        if (comment != null && comment.isNotEmpty) 'comentario': comment,
+      }),
+    );
+
+    if (response.statusCode != 201 && response.statusCode != 200) {
+      final error =
+          jsonDecode(response.body)['error'] ?? 'Error al enviar calificación';
+      throw Exception(error);
+    }
+  }
+
+  // OBTENER PREFERENCIA DE MÉTODO DE EMERGENCIA
+  static Future<Map<String, dynamic>> getEmergencyPreference(int userId) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/emergency/preference/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      // Return default if error
+      return {'metodo_preferido': 'WHATSAPP'};
+    }
+  }
+
+  // ACTUALIZAR PREFERENCIA DE MÉTODO DE EMERGENCIA
+  static Future<void> updateEmergencyPreference(
+      int userId, String metodoPreferido) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('${Config.apiUrl}/emergency/preference/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'metodo_preferido': metodoPreferido}),
+    );
+
+    if (response.statusCode != 200) {
+      final error = jsonDecode(response.body)['error'] ??
+          'Error al actualizar preferencia';
+      throw Exception(error);
+    }
+  }
+
+  // DETECTAR UNIVERSIDAD POR CORREO
+  static Future<Map<String, dynamic>> detectUniversityByEmail(
+      String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${Config.apiUrl}/university/detect-by-email'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {'detected': false};
+      }
+    } catch (e) {
+      return {'detected': false};
     }
   }
 }

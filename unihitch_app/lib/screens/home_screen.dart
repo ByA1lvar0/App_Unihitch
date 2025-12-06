@@ -797,6 +797,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final userEmail = _user?['correo'] ?? 'correo@ejemplo.com';
     final userInitial = userName.isNotEmpty ? userName[0].toUpperCase() : 'U';
     final bool isAdmin = _user?['es_admin'] == true || _user?['es_admin'] == 1;
+    final bool isExternalAgent = _user?['es_agente_externo'] == true;
 
     return Drawer(
       child: ListView(
@@ -897,18 +898,19 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.people),
-            title: const Text('Comunidades'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const CommunitiesListScreen()),
-              );
-            },
-          ),
+          if (!isExternalAgent)
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Comunidades'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const CommunitiesListScreen()),
+                );
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.chat),
             title: const Text('Chats'),
