@@ -4,6 +4,9 @@ import '../services/api_service.dart';
 import 'trip_history_screen.dart';
 import 'statistics_screen.dart';
 import 'referral_screen.dart';
+import 'privacy_screen.dart';
+import 'legal_screen.dart';
+import 'emergency_config_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -78,8 +81,9 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('Privacidad'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Funcionalidad de privacidad')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PrivacyScreen()),
               );
             },
           ),
@@ -88,9 +92,26 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('Legal'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Funcionalidad legal')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LegalScreen()),
               );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.emergency, color: Colors.red),
+            title: const Text('Configurar Emergencias'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final user = await ApiService.getUser();
+              if (context.mounted && user != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EmergencyConfigScreen(user: user),
+                  ),
+                );
+              }
             },
           ),
           const SizedBox(height: 40),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import 'upload_documents_screen.dart';
 
 class CreateTripScreen extends StatefulWidget {
   const CreateTripScreen({super.key});
@@ -15,10 +16,119 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
   final _destinoController = TextEditingController();
   final _precioController = TextEditingController();
   final _asientosController = TextEditingController(text: '4');
-  
+
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkDocumentStatus();
+  }
+
+  Future<void> _checkDocumentStatus() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = await ApiService.getUser();
+      if (user != null) {
+        final status = await ApiService.getDocumentStatus(user['id']);
+        if (status != null && status['puede_ofrecer_viajes'] == false) {
+          if (mounted) {
+            _showRestrictionDialog(status, user['id']);
+          }
+        }
+      }
+    } catch (e) {
+      print('Error checking documents: $e');
+      if (mounted) {
+        if (e.toString().contains('401') ||
+            e.toString().toLowerCase().contains('unauthorized')) {
+          // Token expirado o inválido, redirigir al login
+          Navigator.pushNamedAndRemoveUntil(
+              context, '/login', (route) => false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        } else {
+          // Otro error
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: const Text('Error'),
+              content: Text('No se pudo verificar tus documentos: $e'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Close dialog
+                    Navigator.pop(context); // Go back
+                  },
+                  child: const Text('VOLVER'),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showRestrictionDialog(Map<String, dynamic> status, int userId) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Documentos Requeridos'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Para ofrecer viajes, necesitas tener los siguientes documentos aprobados:',
+            ),
+            const SizedBox(height: 12),
+            ...status['documentos_faltantes']
+                .map<Widget>((doc) => ListTile(
+                      leading:
+                          const Icon(Icons.error_outline, color: Colors.red),
+                      title: Text(doc.toString().replaceAll('_', ' ')),
+                      dense: true,
+                    ))
+                .toList(),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Go back to previous screen
+            },
+            child: const Text('CANCELAR'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Go back
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => UploadDocumentsScreen(userId: userId),
+                ),
+              );
+            },
+            child: const Text('SUBIR DOCUMENTOS'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
@@ -78,7 +188,9 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -88,6 +200,14 @@ class _CreateTripScreenState extends State<CreateTripScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Crear Viaje'),

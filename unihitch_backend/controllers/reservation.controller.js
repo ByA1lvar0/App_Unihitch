@@ -149,6 +149,27 @@ const createReservation = async (req, res) => {
             [id_viaje]
         );
 
+        // Obtener nombre del pasajero para notificación al conductor
+        const pasajeroInfo = await client.query(
+            'SELECT nombre FROM usuario WHERE id = $1',
+            [id_pasajero]
+        );
+        const nombrePasajero = pasajeroInfo.rows[0]?.nombre || 'Un pasajero';
+
+        // Notificación al pasajero
+        await client.query(
+            `INSERT INTO notificacion (id_usuario, titulo, mensaje, tipo) 
+         VALUES ($1, 'Reserva Confirmada', $2, 'RESERVA')`,
+            [id_pasajero, `Tu reserva para el viaje de ${viajeData.origen} a ${viajeData.destino} ha sido confirmada. ${metodoPagoFinal === 'EFECTIVO' ? 'Recuerda llevar efectivo para pagar al conductor.' : 'El pago se ha procesado exitosamente.'}`]
+        );
+
+        // Notificación al conductor
+        await client.query(
+            `INSERT INTO notificacion (id_usuario, titulo, mensaje, tipo) 
+         VALUES ($1, 'Nueva Reserva', $2, 'VIAJE')`,
+            [id_conductor, `${nombrePasajero} ha reservado un asiento en tu viaje de ${viajeData.origen} a ${viajeData.destino}.`]
+        );
+
         // Confirmar transacción
         await client.query('COMMIT');
 
@@ -275,6 +296,29 @@ const cancelReservation = async (req, res) => {
         await client.query(
             'UPDATE viaje SET asientos_disponibles = asientos_disponibles + 1 WHERE id = $1',
             [reservaData.id_viaje]
+        );
+
+        // Obtener nombres para notificaciones
+        const pasajeroInfo = await client.query('SELECT nombre FROM usuario WHERE id = $1', [id_pasajero]);
+        const conductorInfo = await client.query('SELECT nombre FROM usuario WHERE id = $1', [id_conductor]);
+        const nombrePasajero = pasajeroInfo.rows[0]?.nombre || 'El pasajero';
+        const nombreConductor = conductorInfo.rows[0]?.nombre || 'El conductor';
+
+        // Determinar quién canceló
+        const canceladoPor = userId === id_pasajero ? 'pasajero' : 'conductor';
+
+        // Notificación al pasajero
+        await client.query(
+            `INSERT INTO notificacion (id_usuario, titulo, mensaje, tipo) 
+         VALUES ($1, 'Reserva Cancelada', $2, 'RESERVA')`,
+            [id_pasajero, `Tu reserva para el viaje de ${reservaData.origen} a ${reservaData.destino} ha sido cancelada. ${reservaData.metodo_pago === 'WALLET' ? `Se ha devuelto S/ ${precio} a tu billetera.` : ''}`]
+        );
+
+        // Notificación al conductor
+        await client.query(
+            `INSERT INTO notificacion (id_usuario, titulo, mensaje, tipo) 
+         VALUES ($1, 'Reserva Cancelada', $2, 'VIAJE')`,
+            [id_conductor, `${nombrePasajero} ha cancelado su reserva para el viaje de ${reservaData.origen} a ${reservaData.destino}. Se ha liberado un asiento.`]
         );
 
         await client.query('COMMIT');

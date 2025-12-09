@@ -58,7 +58,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
           } else {
             // Si no, usar la universidad del usuario
             _universidadId = user['id_universidad'];
-            _universidadNombre = 'Tu Comunidad';
+            _universidadNombre = user['universidad_nombre'] != null
+                ? 'Comunidad ${user['universidad_nombre']}'
+                : 'Tu Comunidad';
           }
         });
 

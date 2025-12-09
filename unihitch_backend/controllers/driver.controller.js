@@ -13,7 +13,7 @@ const uploadDocument = async (req, res) => {
         } = req.body;
 
         // Validar que el tipo de documento sea válido
-        const tiposValidos = ['SOAT', 'LICENCIA', 'DNI', 'TARJETA_MANTENIMIENTO', 'FOTO_PERFIL'];
+        const tiposValidos = ['SOAT', 'LICENCIA', 'DNI', 'TARJETA_MANTENIMIENTO', 'FOTO_PERFIL', 'TARJETA_PROPIEDAD'];
         if (!tiposValidos.includes(tipo_documento)) {
             return res.status(400).json({
                 error: 'Tipo de documento inválido',
@@ -103,8 +103,8 @@ const getDocumentStatus = async (req, res) => {
 
         // Documentos requeridos
         const documentosRequeridos = esAgenteExterno
-            ? ['SOAT', 'LICENCIA', 'DNI', 'TARJETA_MANTENIMIENTO', 'FOTO_PERFIL']
-            : ['SOAT', 'LICENCIA', 'FOTO_PERFIL'];
+            ? ['SOAT', 'LICENCIA', 'DNI', 'TARJETA_MANTENIMIENTO', 'FOTO_PERFIL', 'TARJETA_PROPIEDAD']
+            : ['SOAT', 'LICENCIA', 'FOTO_PERFIL', 'TARJETA_PROPIEDAD'];
 
         // Obtener documentos subidos
         const docsResult = await pool.query(

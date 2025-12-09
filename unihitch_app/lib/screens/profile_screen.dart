@@ -1,13 +1,34 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'edit_profile_screen.dart';
+import 'trip_history_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late Future<Map<String, dynamic>?> _userFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _userFuture = ApiService.getUser();
+  }
+
+  void _refreshUser() {
+    setState(() {
+      _userFuture = ApiService.getUser();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>?>(
-      future: ApiService.getUser(),
+      future: _userFuture,
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Scaffold(
@@ -23,10 +44,16 @@ class ProfileScreen extends StatelessWidget {
             actions: [
               IconButton(
                 icon: const Icon(Icons.edit),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Editar perfil')),
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditProfileScreen(user: user),
+                    ),
                   );
+                  if (result == true) {
+                    _refreshUser();
+                  }
                 },
               ),
             ],
@@ -61,7 +88,10 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     const Icon(Icons.school, color: Colors.blue),
                     const SizedBox(width: 4),
-                    Text('Medicina - UNP'),
+                    Text(
+                      '${user['carrera'] ?? 'Sin carrera'} - ${user['universidad_nombre'] ?? ''}',
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -79,7 +109,7 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     const Icon(Icons.phone, color: Colors.blue),
                     const SizedBox(width: 4),
-                    Text(user['telefono'] ?? '+51 987 654 321'),
+                    Text(user['telefono'] ?? 'Sin teléfono'),
                   ],
                 ),
                 const SizedBox(height: 32),
@@ -93,9 +123,12 @@ class ProfileScreen extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStat(Icons.star, Colors.amber, '4.8', 'Calificación'),
-                      _buildStat(Icons.directions_car, Colors.blue, '127', 'Viajes'),
-                      _buildStat(Icons.savings, Colors.green, 'S/. 890', 'Ahorrados'),
+                      _buildStat(
+                          Icons.star, Colors.amber, '4.8', 'Calificación'),
+                      _buildStat(
+                          Icons.directions_car, Colors.blue, '127', 'Viajes'),
+                      _buildStat(
+                          Icons.savings, Colors.green, 'S/. 890', 'Ahorrados'),
                     ],
                   ),
                 ),
@@ -122,32 +155,40 @@ class ProfileScreen extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(
-                        child: _buildBadge('Top Rider', Colors.amber, Icons.workspace_premium),
+                        child: _buildBadge(
+                            'Top Rider', Colors.amber, Icons.workspace_premium),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _buildBadge('5 Estrellas', Colors.blue, Icons.star),
+                        child:
+                            _buildBadge('5 Estrellas', Colors.blue, Icons.star),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _buildBadge('Eco-Friendly', Colors.green, Icons.eco),
+                        child: _buildBadge(
+                            'Eco-Friendly', Colors.green, Icons.eco),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 40),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Editar perfil')),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EditProfileScreen(user: user),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.person, color: Colors.white),
-                      label: const Text('EDITAR PERFIL', style: TextStyle(color: Colors.white)),
+                      label: const Text('EDITAR PERFIL',
+                          style: TextStyle(color: Colors.white)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue.shade600,
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -156,13 +197,17 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Ver historial')),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TripHistoryScreen(),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.history),
@@ -174,7 +219,8 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -246,4 +292,3 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 }
-

@@ -1,30 +1,32 @@
 const express = require('express');
 const router = express.Router();
 const chatController = require('../controllers/chat.controller');
+const { validateChatAccess, validateMessageAccess } = require('../middleware/chat-validation.middleware');
+const authMiddleware = require('../middleware/auth.middleware');
 
-router.get('/:userId', chatController.getChats);
-router.get('/:userId/unread-count', chatController.getUnreadCount);
-router.post('/', chatController.createChat);
-router.get('/:chatId/messages', chatController.getMessages);
-// Note: Original route was /api/messages for sending message, but logically it belongs to chat.
-// I will keep it separate or group it.
-// The original server.js had:
-// app.post('/api/messages', ...)
-// app.put('/api/chats/:chatId/read/:userId', ...)
-// app.get('/api/messages/unread-count/:userId', ...)
+// Aplicar middleware de autenticación a todas las rutas de chat
+router.use(authMiddleware);
 
-// I will map them here but I need to be careful with mounting.
-// If I mount this at /api/chats, then /api/messages won't work.
-// I should probably create a separate route file for messages or handle it in server.js routing.
-// Or I can just define the paths here relative to /api if I mount at /api.
-// Let's assume I mount at /api.
+// Crear chat (con validación de acceso)
+router.post('/chats', validateChatAccess, chatController.createChat);
 
+// Obtener chats del usuario
 router.get('/chats/:userId', chatController.getChats);
+
+// Obtener contador de no leídos
 router.get('/chats/:userId/unread-count', chatController.getUnreadCount);
-router.post('/chats', chatController.createChat);
+
+// Obtener mensajes de un chat
 router.get('/chats/:chatId/messages', chatController.getMessages);
-router.post('/messages', chatController.sendMessage);
+
+// Enviar mensaje (con validación)
+router.post('/messages', validateMessageAccess, chatController.sendMessage);
+
+// Marcar como leído
 router.put('/chats/:chatId/read/:userId', chatController.markAsRead);
+
+// Contador de mensajes no leídos
 router.get('/messages/unread-count/:userId', chatController.getUnreadMessagesCount);
 
 module.exports = router;
+

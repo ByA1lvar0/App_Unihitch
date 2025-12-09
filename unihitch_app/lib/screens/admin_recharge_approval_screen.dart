@@ -258,7 +258,8 @@ class _AdminRechargeApprovalScreenState
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: Image.memory(
-                        base64Decode(solicitud['comprobante_base64']),
+                        base64Decode(
+                            _sanitizeBase64(solicitud['comprobante_base64'])),
                         height: 200,
                         width: double.infinity,
                         fit: BoxFit.cover,
@@ -308,8 +309,10 @@ class _AdminRechargeApprovalScreenState
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () =>
-                        _aprobar(solicitud['id'], solicitud['monto']),
+                    onPressed: () => _aprobar(
+                      solicitud['id'],
+                      double.parse(solicitud['monto'].toString()),
+                    ),
                     icon: const Icon(Icons.check),
                     label: const Text('Aprobar'),
                     style: ElevatedButton.styleFrom(
@@ -344,7 +347,7 @@ class _AdminRechargeApprovalScreenState
             Expanded(
               child: InteractiveViewer(
                 child: Image.memory(
-                  base64Decode(base64Image),
+                  base64Decode(_sanitizeBase64(base64Image)),
                   fit: BoxFit.contain,
                 ),
               ),
@@ -353,5 +356,12 @@ class _AdminRechargeApprovalScreenState
         ),
       ),
     );
+  }
+
+  String _sanitizeBase64(String base64) {
+    if (base64.contains(',')) {
+      return base64.split(',').last;
+    }
+    return base64;
   }
 }

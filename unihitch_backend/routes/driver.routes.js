@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const driverController = require('../controllers/driver.controller');
+const authMiddleware = require('../middleware/auth.middleware');
+
+router.use(authMiddleware);
 
 router.post('/', driverController.uploadDocument);
 router.get('/:id_conductor', driverController.getDocuments);

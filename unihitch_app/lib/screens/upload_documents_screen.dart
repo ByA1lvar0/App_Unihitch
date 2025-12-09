@@ -383,14 +383,15 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                   // Documentos obligatorios para todos
                   _buildDocumentoCard('FOTO_PERFIL', 'Foto de Perfil'),
                   _buildDocumentoCard('SOAT', 'SOAT', requiereFecha: true),
-                  _buildDocumentoCard('LICENCIA', 'Licencia de Conducir'),
+                  _buildDocumentoCard('LICENCIA', 'Licencia de Conducir',
+                      requiereFecha: true),
+                  _buildDocumentoCard('TARJETA_PROPIEDAD',
+                      'Tarjeta de Propiedad / Mantenimiento',
+                      requiereFecha: true),
 
                   // Documentos solo para agentes externos
                   if (widget.esAgenteExterno) ...[
                     _buildDocumentoCard('DNI', 'DNI'),
-                    _buildDocumentoCard(
-                        'TARJETA_MANTENIMIENTO', 'Tarjeta de Mantenimiento',
-                        requiereFecha: true),
                   ],
                 ],
               ),

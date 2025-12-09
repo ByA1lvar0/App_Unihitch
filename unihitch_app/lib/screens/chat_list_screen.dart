@@ -98,30 +98,70 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget _buildChatItem(Map<String, dynamic> chat) {
     final unreadCount = chat['mensajes_no_leidos'] ?? 0;
     final hasUnread = unreadCount > 0;
+    final hasViajeContext = chat['viaje_origen'] != null;
+
+    // Extract university abbreviation from full name
+    String userName = chat['otro_usuario_nombre'] ?? 'Usuario';
+    final universidadCompleta = chat['otro_usuario_universidad'];
+
+    if (universidadCompleta != null) {
+      // Extract abbreviation from parentheses, e.g., "Universidad César Vallejo (UCV)" -> "UCV"
+      final match = RegExp(r'\(([^)]+)\)').firstMatch(universidadCompleta);
+      if (match != null) {
+        final abreviacion = match.group(1);
+        userName = '$userName - COMUNIDAD $abreviacion';
+      }
+    }
 
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: Colors.blue.shade600,
-        child: Text(
-          chat['otro_usuario_nombre']?.substring(0, 1).toUpperCase() ?? '?',
-          style:
-              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        backgroundColor: hasViajeContext ? Colors.blue.shade600 : Colors.grey,
+        child: Icon(
+          hasViajeContext ? Icons.directions_car : Icons.chat,
+          color: Colors.white,
+          size: 20,
         ),
       ),
       title: Text(
-        chat['otro_usuario_nombre'] ?? 'Usuario',
+        userName,
         style: TextStyle(
           fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      subtitle: Text(
-        chat['ultimo_mensaje'] ?? 'Sin mensajes',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: hasUnread ? Colors.black87 : Colors.grey.shade600,
-          fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
-        ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasViajeContext) ...[
+            Row(
+              children: [
+                Icon(Icons.route, size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    '${chat['viaje_origen']} → ${chat['viaje_destino']}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.blue.shade700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+          ],
+          Text(
+            chat['ultimo_mensaje'] ?? 'Sin mensajes',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: hasUnread ? Colors.black87 : Colors.grey.shade600,
+              fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
       trailing: hasUnread
           ? Container(
@@ -148,6 +188,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
               chatId: chat['id'],
               otherUserName: chat['otro_usuario_nombre'] ?? 'Usuario',
               otherUserId: chat['otro_usuario_id'],
+              otherUserUniversity: chat['otro_usuario_universidad'],
             ),
           ),
         ).then((_) => _loadChats());
