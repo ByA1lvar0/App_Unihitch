@@ -18,5 +18,9 @@ router.post('/', createTripValidation, verifyDriverDocuments, tripController.cre
 // Todos pueden ver viajes de un conductor específico
 router.get('/conductor/:id', tripController.getDriverTrips);
 
+// Seguimiento en tiempo real
+router.post('/:id/ubicacion', tripController.updateLocation);
+router.get('/:id/ubicaciones', tripController.getTripLocations);
+
 module.exports = router;
 

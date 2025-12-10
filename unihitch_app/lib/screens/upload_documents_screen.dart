@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
 import '../config.dart';
@@ -26,7 +25,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
 
   // Estado de documentos
   Map<String, dynamic> _documentos = {};
-  Map<String, File?> _archivosSeleccionados = {};
+  Map<String, XFile?> _archivosSeleccionados = {};
   Map<String, DateTime?> _fechasVencimiento = {};
 
   @override
@@ -38,8 +37,13 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
   Future<void> _cargarDocumentos() async {
     setState(() => _isLoading = true);
     try {
+      final token = await ApiService.getToken();
       final response = await http.get(
         Uri.parse('${Config.apiUrl}/documentos-conductor/${widget.userId}'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
       );
 
       if (response.statusCode == 200) {
@@ -47,6 +51,8 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         setState(() {
           _documentos = {for (var doc in docs) doc['tipo_documento']: doc};
         });
+      } else if (response.statusCode == 401) {
+        throw Exception('Sesión expirada. Por favor inicia sesión nuevamente.');
       }
     } catch (e) {
       if (mounted) {
@@ -70,7 +76,7 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
 
       if (image != null) {
         setState(() {
-          _archivosSeleccionados[tipoDocumento] = File(image.path);
+          _archivosSeleccionados[tipoDocumento] = image;
         });
       }
     } catch (e) {
@@ -94,6 +100,13 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // Obtener token de autenticación
+      final token = await ApiService.getToken();
+      if (token == null) {
+        throw Exception(
+            'No se encontró token de autenticación. Por favor inicia sesión nuevamente.');
+      }
+
       // Convertir a base64
       final bytes = await archivo.readAsBytes();
       final base64String = base64Encode(bytes);
@@ -109,7 +122,10 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
 
       final response = await http.post(
         Uri.parse('${Config.apiUrl}/documentos-conductor'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({
           'id_conductor': widget.userId,
           'tipo_documento': tipoDocumento,
@@ -135,8 +151,12 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
         setState(() {
           _archivosSeleccionados[tipoDocumento] = null;
         });
+      } else if (response.statusCode == 401) {
+        throw Exception('Sesión expirada. Por favor inicia sesión nuevamente.');
       } else {
-        throw Exception(jsonDecode(response.body)['error']);
+        final errorData = jsonDecode(response.body);
+        throw Exception(
+            errorData['error'] ?? 'Error desconocido al subir documento');
       }
     } catch (e) {
       if (mounted) {
@@ -163,6 +183,173 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
     if (picked != null) {
       setState(() {
         _fechasVencimiento[tipoDocumento] = picked;
+      });
+    }
+  }
+
+  Future<void> _subirTodosLosDocumentos() async {
+    // Verificar que hay al menos un documento seleccionado
+    if (_archivosSeleccionados.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Primero selecciona al menos un documento'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Validar que los documentos que requieren fecha tengan fecha seleccionada
+    List<String> documentosSinFecha = [];
+    final documentosConFecha = ['SOAT', 'LICENCIA', 'TARJETA_PROPIEDAD'];
+
+    for (var entry in _archivosSeleccionados.entries) {
+      final tipoDocumento = entry.key;
+      final archivo = entry.value;
+
+      if (archivo != null && documentosConFecha.contains(tipoDocumento)) {
+        if (_fechasVencimiento[tipoDocumento] == null) {
+          String nombreDoc = tipoDocumento == 'SOAT'
+              ? 'SOAT'
+              : tipoDocumento == 'LICENCIA'
+                  ? 'Licencia'
+                  : 'Tarjeta de Propiedad';
+          documentosSinFecha.add(nombreDoc);
+        }
+      }
+    }
+
+    if (documentosSinFecha.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '⚠️ Falta seleccionar fecha de vencimiento para:\n${documentosSinFecha.join('\n')}',
+          ),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    int exitosos = 0;
+    int fallidos = 0;
+    List<String> errores = [];
+
+    for (var entry in _archivosSeleccionados.entries) {
+      final tipoDocumento = entry.key;
+      final archivo = entry.value;
+
+      if (archivo == null) continue;
+
+      try {
+        // Obtener token de autenticación
+        final token = await ApiService.getToken();
+        if (token == null) {
+          throw Exception('Token no encontrado');
+        }
+
+        // Convertir a base64
+        final bytes = await archivo.readAsBytes();
+        final base64String = base64Encode(bytes);
+        final tamanioKb = (bytes.length / 1024).round();
+
+        // Obtener nombre del archivo (compatible con web)
+        final nombreArchivo = archivo.name;
+
+        // Determinar MIME type
+        String mimeType = 'image/jpeg';
+        if (nombreArchivo.toLowerCase().endsWith('.png')) {
+          mimeType = 'image/png';
+        } else if (nombreArchivo.toLowerCase().endsWith('.pdf')) {
+          mimeType = 'application/pdf';
+        }
+
+        final response = await http.post(
+          Uri.parse('${Config.apiUrl}/documentos-conductor'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'id_conductor': widget.userId,
+            'tipo_documento': tipoDocumento,
+            'archivo_base64': base64String,
+            'nombre_archivo': nombreArchivo,
+            'mime_type': mimeType,
+            'tamanio_kb': tamanioKb,
+            'fecha_vencimiento':
+                _fechasVencimiento[tipoDocumento]?.toIso8601String(),
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          exitosos++;
+        } else {
+          fallidos++;
+          final errorData = jsonDecode(response.body);
+          String nombreDoc = tipoDocumento == 'FOTO_PERFIL'
+              ? 'Foto de Perfil'
+              : tipoDocumento == 'SOAT'
+                  ? 'SOAT'
+                  : tipoDocumento == 'LICENCIA'
+                      ? 'Licencia'
+                      : tipoDocumento == 'TARJETA_PROPIEDAD'
+                          ? 'Tarjeta de Propiedad'
+                          : tipoDocumento;
+          errores
+              .add('$nombreDoc: ${errorData['error'] ?? 'Error desconocido'}');
+        }
+      } catch (e) {
+        fallidos++;
+        String nombreDoc = tipoDocumento == 'FOTO_PERFIL'
+            ? 'Foto de Perfil'
+            : tipoDocumento == 'SOAT'
+                ? 'SOAT'
+                : tipoDocumento == 'LICENCIA'
+                    ? 'Licencia'
+                    : tipoDocumento == 'TARJETA_PROPIEDAD'
+                        ? 'Tarjeta de Propiedad'
+                        : tipoDocumento;
+        errores
+            .add('$nombreDoc: ${e.toString().replaceAll('Exception: ', '')}');
+      }
+    }
+
+    setState(() => _isLoading = false);
+
+    if (mounted) {
+      // Mostrar resultado
+      if (fallidos == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ $exitosos documentos subidos exitosamente'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '⚠️ $exitosos exitosos, $fallidos fallidos\n${errores.join('\n')}'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
+          ),
+        );
+      }
+
+      // Recargar documentos y limpiar selección
+      await _cargarDocumentos();
+      setState(() {
+        _archivosSeleccionados.clear();
       });
     }
   }
@@ -325,6 +512,10 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Contar documentos seleccionados
+    final documentosSeleccionados =
+        _archivosSeleccionados.values.where((file) => file != null).length;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Documentos del Conductor'),
@@ -393,9 +584,26 @@ class _UploadDocumentsScreenState extends State<UploadDocumentsScreen> {
                   if (widget.esAgenteExterno) ...[
                     _buildDocumentoCard('DNI', 'DNI'),
                   ],
+
+                  // Espacio para el FAB
+                  const SizedBox(height: 80),
                 ],
               ),
             ),
+      floatingActionButton: documentosSeleccionados > 0
+          ? FloatingActionButton.extended(
+              onPressed: _subirTodosLosDocumentos,
+              backgroundColor: Colors.green,
+              icon: const Icon(Icons.cloud_upload, color: Colors.white),
+              label: Text(
+                'Subir Todos ($documentosSeleccionados)',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

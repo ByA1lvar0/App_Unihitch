@@ -242,6 +242,13 @@ const login = async (req, res) => {
             return res.status(401).json({ error: 'Contraseña incorrecta. Inténtalo nuevamente.' });
         }
 
+        // Verificar si el usuario está activo
+        if (user.activo === false) {
+            return res.status(403).json({
+                error: 'Tu cuenta ha sido inhabilitada por un administrador. Por favor, contacta al soporte para más información.'
+            });
+        }
+
         const token = jwt.sign({
             id: user.id,
             rol: user.rol,

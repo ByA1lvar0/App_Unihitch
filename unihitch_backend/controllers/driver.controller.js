@@ -49,6 +49,37 @@ const uploadDocument = async (req, res) => {
             );
         }
 
+        // Crear notificación para todos los administradores
+        try {
+            const admins = await pool.query(
+                'SELECT id FROM usuario WHERE es_admin = true'
+            );
+
+            const conductorInfo = await pool.query(
+                'SELECT nombre FROM usuario WHERE id = $1',
+                [id_conductor]
+            );
+
+            const nombreConductor = conductorInfo.rows[0]?.nombre || 'Un conductor';
+
+            for (const admin of admins.rows) {
+                await pool.query(
+                    `INSERT INTO notificacion (id_usuario, tipo, titulo, mensaje, id_relacionado)
+                     VALUES ($1, $2, $3, $4, $5)`,
+                    [
+                        admin.id,
+                        'DOCUMENTO_PENDIENTE',
+                        'Nuevo documento pendiente',
+                        `${nombreConductor} ha subido un documento (${tipo_documento}) para revisión`,
+                        result.rows[0].id
+                    ]
+                );
+            }
+        } catch (notifError) {
+            console.error('Error al crear notificaciones:', notifError);
+            // No fallar la subida si falla la notificación
+        }
+
         res.json({
             mensaje: 'Documento subido exitosamente',
             documento: {
@@ -101,10 +132,9 @@ const getDocumentStatus = async (req, res) => {
         const user = userResult.rows[0];
         const esAgenteExterno = user.es_agente_externo || false;
 
-        // Documentos requeridos
-        const documentosRequeridos = esAgenteExterno
-            ? ['SOAT', 'LICENCIA', 'DNI', 'TARJETA_MANTENIMIENTO', 'FOTO_PERFIL', 'TARJETA_PROPIEDAD']
-            : ['SOAT', 'LICENCIA', 'FOTO_PERFIL', 'TARJETA_PROPIEDAD'];
+        // Documentos requeridos - igual que en trip.controller.js
+        // Todos los conductores requieren los mismos 4 documentos básicos
+        const documentosRequeridos = ['SOAT', 'LICENCIA', 'FOTO_PERFIL', 'TARJETA_PROPIEDAD'];
 
         // Obtener documentos subidos
         const docsResult = await pool.query(

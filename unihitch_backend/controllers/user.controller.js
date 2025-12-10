@@ -119,7 +119,7 @@ const getUser = async (req, res) => {
 const getUsers = async (req, res) => {
     try {
         const result = await pool.query(
-            'SELECT id, nombre, correo, id_universidad, verificado FROM usuario WHERE rol = \'USER\' ORDER BY nombre'
+            "SELECT id, nombre, correo, id_universidad, verificado, rol, activo FROM usuario WHERE rol != 'ADMIN' OR rol IS NULL ORDER BY nombre"
         );
         res.json(result.rows);
     } catch (error) {

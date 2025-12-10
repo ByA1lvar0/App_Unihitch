@@ -45,4 +45,18 @@ const markAsRead = async (req, res) => {
     }
 };
 
-module.exports = { getNotifications, createNotification, markAsRead };
+const markAllAsRead = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const result = await pool.query(
+            'UPDATE notificacion SET leido = true WHERE id_usuario = $1 RETURNING *',
+            [userId]
+        );
+        res.json({ success: true, count: result.rowCount });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al marcar notificaciones como leídas' });
+    }
+};
+
+module.exports = { getNotifications, createNotification, markAsRead, markAllAsRead };

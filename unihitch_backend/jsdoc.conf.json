@@ -1,0 +1,18 @@
+{
+    "source": {
+        "include": [
+            "."
+        ],
+        "exclude": [
+            "node_modules",
+            "server_temp.js",
+            "server.js.backup",
+            "out",
+            "docs"
+        ]
+    },
+    "opts": {
+        "destination": "./docs",
+        "recurse": true
+    }
+}

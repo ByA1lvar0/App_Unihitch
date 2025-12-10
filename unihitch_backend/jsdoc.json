@@ -1,0 +1,35 @@
+{
+    "source": {
+        "include": [
+            "controllers",
+            "middleware",
+            "routes",
+            "config"
+        ],
+        "includePattern": ".+\\.js(doc|x)?$",
+        "excludePattern": "(node_modules/|docs)"
+    },
+    "opts": {
+        "destination": "./docs",
+        "recurse": true,
+        "readme": "../README.md",
+        "template": "default"
+    },
+    "plugins": [
+        "plugins/markdown"
+    ],
+    "templates": {
+        "cleverLinks": false,
+        "monospaceLinks": false,
+        "default": {
+            "outputSourceFiles": true
+        }
+    },
+    "tags": {
+        "allowUnknownTags": true,
+        "dictionaries": [
+            "jsdoc",
+            "closure"
+        ]
+    }
+}
