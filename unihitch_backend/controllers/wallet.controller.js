@@ -597,6 +597,22 @@ const getWithdrawals = async (req, res) => {
     }
 };
 
+const getPendingWithdrawals = async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT w.*, u.nombre as usuario_nombre, u.correo as usuario_correo
+       FROM withdrawal_request w
+       JOIN usuario u ON w.id_usuario = u.id
+       WHERE w.estado = 'PENDIENTE'
+       ORDER BY w.fecha_solicitud ASC`
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al obtener retiros pendientes' });
+    }
+};
+
 const processWithdrawal = async (req, res) => {
     try {
         const { id } = req.params;
@@ -708,5 +724,6 @@ module.exports = {
     requestWithdrawal,
     getWithdrawals,
     processWithdrawal,
+    getPendingWithdrawals,
     getCO2Stats
 };

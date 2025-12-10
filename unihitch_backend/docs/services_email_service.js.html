@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: services/email_service.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: services/email_service.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const nodemailer = require('nodemailer');
+
+// Configurar transporter de Gmail
+const transporter = nodemailer.createTransporter({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER, // Tu email de Gmail
+        pass: process.env.EMAIL_APP_PASSWORD // App Password de Gmail
+    }
+});
+
+/**
+ * Genera un código aleatorio de 6 dígitos
+ */
+function generateVerificationCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/**
+ * Envía un código de verificación por email
+ * @param {string} email - Email del destinatario
+ * @param {string} code - Código de 6 dígitos
+ * @param {string} userName - Nombre del usuario
+ */
+async function sendVerificationEmail(email, code, userName = 'Usuario') {
+    const mailOptions = {
+        from: `UniHitch &lt;${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: '🔐 Código de Verificación - UniHitch',
+        html: `
+      &lt;!DOCTYPE html>
+      &lt;html>
+      &lt;head>
+        &lt;style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .code { font-size: 32px; font-weight: bold; letter-spacing: 5px; text-align: center; background: white; padding: 20px; margin: 20px 0; border-radius: 8px; border: 2px dashed #667eea; }
+          .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+        &lt;/style>
+      &lt;/head>
+      &lt;body>
+        &lt;div class="container">
+          &lt;div class="header">
+            &lt;h1>🚗 UniHitch&lt;/h1>
+            &lt;p>Verificación de Email&lt;/p>
+          &lt;/div>
+          &lt;div class="content">
+            &lt;h2>¡Hola ${userName}!&lt;/h2>
+            &lt;p>Gracias por registrarte en UniHitch. Para completar tu registro, ingresa el siguiente código de verificación:&lt;/p>
+            
+            &lt;div class="code">${code}&lt;/div>
+            
+            &lt;p>&lt;strong>Este código expira en 15 minutos.&lt;/strong>&lt;/p>
+            
+            &lt;p>Si no solicitaste este código, ignora este email.&lt;/p>
+          &lt;/div>
+          &lt;div class="footer">
+            &lt;p>© 2025 UniHitch - Tu plataforma de viajes compartidos universitarios&lt;/p>
+          &lt;/div>
+        &lt;/div>
+      &lt;/body>
+      &lt;/html>
+    `
+    };
+
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log('✉️ Email enviado:', info.messageId);
+        return { success: true, messageId: info.messageId };
+    } catch (error) {
+        console.error('❌ Error enviando email:', error);
+        throw error;
+    }
+}
+
+/**
+ * Envía notificación de documentos aprobados
+ */
+async function sendDocumentsApprovedEmail(email, userName) {
+    const mailOptions = {
+        from: `UniHitch &lt;${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: '✅ Documentos Aprobados - Ya puedes ofrecer viajes',
+        html: `
+      &lt;!DOCTYPE html>
+      &lt;html>
+      &lt;body style="font-family: Arial, sans-serif;">
+        &lt;div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+          &lt;h2>¡Felicidades ${userName}!&lt;/h2>
+          &lt;p>Tus documentos han sido verificados y aprobados.&lt;/p>
+          &lt;p>Ya puedes empezar a ofrecer viajes en UniHitch. 🚗&lt;/p>
+          &lt;p>&lt;strong>Próximos pasos:&lt;/strong>&lt;/p>
+          &lt;ul>
+            &lt;li>Abre la app UniHitch&lt;/li>
+            &lt;li>Toca "Ofrecer Viaje"&lt;/li>
+            &lt;li>Completa los detalles de tu viaje&lt;/li>
+            &lt;li>¡Empieza a ganar dinero compartiendo tu auto!&lt;/li>
+          &lt;/ul>
+        &lt;/div>
+      &lt;/body>
+      &lt;/html>
+    `
+    };
+
+    return await transporter.sendMail(mailOptions);
+}
+
+/**
+ * Envía notificación de documentos rechazados
+ */
+async function sendDocumentsRejectedEmail(email, userName, reason) {
+    const mailOptions = {
+        from: `UniHitch &lt;${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: '❌ Documentos Rechazados - Se requiere nueva revisión',
+        html: `
+      &lt;!DOCTYPE html>
+      &lt;html>
+      &lt;body style="font-family: Arial, sans-serif;">
+        &lt;div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+          &lt;h2>Hola ${userName}&lt;/h2>
+          &lt;p>Lamentablemente, tus documentos no pudieron ser aprobados.&lt;/p>
+          &lt;p>&lt;strong>Motivo:&lt;/strong> ${reason}&lt;/p>
+          &lt;p>Por favor, revisa tus documentos y vuelve a subirlos.&lt;/p>
+          &lt;p>&lt;strong>¿Qué hacer?&lt;/strong>&lt;/p>
+          &lt;ul>
+            &lt;li>Verifica que las imágenes/PDFs sean claros y legibles&lt;/li>
+            &lt;li>Asegúrate que los documentos estén vigentes&lt;/li>
+            &lt;li>Vuelve a subir los documentos en la app&lt;/li>
+          &lt;/ul>
+        &lt;/div>
+      &lt;/body>
+      &lt;/html>
+    `
+    };
+
+    return await transporter.sendMail(mailOptions);
+}
+
+module.exports = {
+    generateVerificationCode,
+    sendVerificationEmail,
+    sendDocumentsApprovedEmail,
+    sendDocumentsRejectedEmail
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#ORS_API_KEY">ORS_API_KEY</a></li><li><a href="global.html#blockExternalUsers">blockExternalUsers</a></li><li><a href="global.html#blockUser">blockUser</a></li><li><a href="global.html#calculateDistance">calculateDistance</a></li><li><a href="global.html#calculateRoute">calculateRoute</a></li><li><a href="global.html#calculateRoutePreview">calculateRoutePreview</a></li><li><a href="global.html#createOrUpdateRoute">createOrUpdateRoute</a></li><li><a href="global.html#decodePolyline">decodePolyline</a></li><li><a href="global.html#generateVerificationCode">generateVerificationCode</a></li><li><a href="global.html#getActiveRoutes">getActiveRoutes</a></li><li><a href="global.html#getBlockedUsers">getBlockedUsers</a></li><li><a href="global.html#getRouteByTrip">getRouteByTrip</a></li><li><a href="global.html#isUserBlocked">isUserBlocked</a></li><li><a href="global.html#onlyExternalUsers">onlyExternalUsers</a></li><li><a href="global.html#requireUniversity">requireUniversity</a></li><li><a href="global.html#sendDocumentsApprovedEmail">sendDocumentsApprovedEmail</a></li><li><a href="global.html#sendDocumentsRejectedEmail">sendDocumentsRejectedEmail</a></li><li><a href="global.html#sendVerificationEmail">sendVerificationEmail</a></li><li><a href="global.html#unblockUser">unblockUser</a></li><li><a href="global.html#updateLastSeen">updateLastSeen</a></li><li><a href="global.html#validateChatAccess">validateChatAccess</a></li><li><a href="global.html#validateMessageAccess">validateMessageAccess</a></li><li><a href="global.html#verifyDriverDocuments">verifyDriverDocuments</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 08 2025 12:10:00 GMT-0500 (hora estándar de Perú)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -28,6 +28,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           _notifications = notifications;
           _isLoading = false;
         });
+        // Marcar todas como leídas
+        await ApiService.markAllNotificationsAsRead(widget.userId);
       }
     } catch (e) {
       print('Error loading notifications: $e');

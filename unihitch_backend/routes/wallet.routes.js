@@ -9,6 +9,7 @@ router.post('/wallet/recarga-culqi', walletController.rechargeCulqi);
 router.post('/wallet/recharge-request', walletController.rechargeRequest);
 router.post('/wallet/recharge-card', walletController.rechargeCard);
 router.post('/wallet/withdrawal-request', walletController.requestWithdrawal);
+router.get('/wallet/withdrawals-pending', walletController.getPendingWithdrawals);
 router.put('/wallet/withdrawal/:id/process', walletController.processWithdrawal);
 
 // Payment Accounts Routes

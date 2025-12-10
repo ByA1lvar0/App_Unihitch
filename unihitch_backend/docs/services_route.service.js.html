@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: services/route.service.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: services/route.service.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const axios = require('axios');
+
+/**
+ * Servicio para cálculo de rutas usando OpenRouteService
+ * Alternativa gratuita a Google Directions API
+ */
+
+// Puedes obtener una API key gratuita en https://openrouteservice.org/dev/#/signup
+// O usar esta demo key (limitada, recomendado obtener tu propia key)
+const ORS_API_KEY = '5b3ce3597851110001cf6248d8c0e0c3f5c14c5fa1e3e3e3e3e3e3e3'; // Demo key
+
+const ORS_BASE_URL = 'https://api.openrouteservice.org/v2/directions/driving-car';
+
+/**
+ * Calcula una ruta entre dos puntos
+ * @param {Object} origin - {lat, lng}
+ * @param {Object} destination - {lat, lng}
+ * @returns {Promise&lt;Object>} - {coordinates, distance, duration}
+ */
+async function calculateRoute(origin, destination) {
+    try {
+        // OpenRouteService usa [lng, lat] (inverso a Google Maps)
+        const coordinates = [
+            [origin.lng, origin.lat],
+            [destination.lng, destination.lat]
+        ];
+
+        const response = await axios.post(
+            ORS_BASE_URL,
+            {
+                coordinates: coordinates,
+                instructions: false,
+                geometry: true
+            },
+            {
+                headers: {
+                    'Authorization': ORS_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        const route = response.data.routes[0];
+
+        // Convertir coordenadas de [lng, lat] a [lat, lng] para Leaflet
+        const routeCoordinates = decodePolyline(route.geometry).map(coord => ({
+            lat: coord[0],
+            lng: coord[1]
+        }));
+
+        return {
+            coordinates: routeCoordinates,
+            distance: route.summary.distance / 1000, // metros a kilómetros
+            duration: route.summary.duration / 60 // segundos a minutos
+        };
+    } catch (error) {
+        console.error('Error calculando ruta con OpenRouteService:', error.message);
+
+        // Fallback: ruta simple en línea recta
+        return {
+            coordinates: [
+                { lat: origin.lat, lng: origin.lng },
+                { lat: destination.lat, lng: destination.lng }
+            ],
+            distance: calculateDistance(origin, destination),
+            duration: null // No podemos estimar sin ruta real
+        };
+    }
+}
+
+/**
+ * Decodifica una polilínea codificada (formato Google/ORS)
+ */
+function decodePolyline(encoded) {
+    const coords = [];
+    let index = 0;
+    let lat = 0;
+    let lng = 0;
+
+    while (index &lt; encoded.length) {
+        let b;
+        let shift = 0;
+        let result = 0;
+
+        do {
+            b = encoded.charCodeAt(index++) - 63;
+            result |= (b &amp; 0x1f) &lt;&lt; shift;
+            shift += 5;
+        } while (b >= 0x20);
+
+        const dlat = ((result &amp; 1) ? ~(result >> 1) : (result >> 1));
+        lat += dlat;
+
+        shift = 0;
+        result = 0;
+
+        do {
+            b = encoded.charCodeAt(index++) - 63;
+            result |= (b &amp; 0x1f) &lt;&lt; shift;
+            shift += 5;
+        } while (b >= 0x20);
+
+        const dlng = ((result &amp; 1) ? ~(result >> 1) : (result >> 1));
+        lng += dlng;
+
+        coords.push([lat / 1e5, lng / 1e5]);
+    }
+
+    return coords;
+}
+
+/**
+ * Calcula distancia en línea recta entre dos puntos (fórmula de Haversine)
+ */
+function calculateDistance(point1, point2) {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = toRad(point2.lat - point1.lat);
+    const dLon = toRad(point2.lng - point1.lng);
+
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(point1.lat)) * Math.cos(toRad(point2.lat)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+
+    return distance;
+}
+
+function toRad(degrees) {
+    return degrees * (Math.PI / 180);
+}
+
+module.exports = {
+    calculateRoute,
+    calculateDistance
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#ORS_API_KEY">ORS_API_KEY</a></li><li><a href="global.html#blockExternalUsers">blockExternalUsers</a></li><li><a href="global.html#blockUser">blockUser</a></li><li><a href="global.html#calculateDistance">calculateDistance</a></li><li><a href="global.html#calculateRoute">calculateRoute</a></li><li><a href="global.html#calculateRoutePreview">calculateRoutePreview</a></li><li><a href="global.html#createOrUpdateRoute">createOrUpdateRoute</a></li><li><a href="global.html#decodePolyline">decodePolyline</a></li><li><a href="global.html#generateVerificationCode">generateVerificationCode</a></li><li><a href="global.html#getActiveRoutes">getActiveRoutes</a></li><li><a href="global.html#getBlockedUsers">getBlockedUsers</a></li><li><a href="global.html#getRouteByTrip">getRouteByTrip</a></li><li><a href="global.html#isUserBlocked">isUserBlocked</a></li><li><a href="global.html#onlyExternalUsers">onlyExternalUsers</a></li><li><a href="global.html#requireUniversity">requireUniversity</a></li><li><a href="global.html#sendDocumentsApprovedEmail">sendDocumentsApprovedEmail</a></li><li><a href="global.html#sendDocumentsRejectedEmail">sendDocumentsRejectedEmail</a></li><li><a href="global.html#sendVerificationEmail">sendVerificationEmail</a></li><li><a href="global.html#unblockUser">unblockUser</a></li><li><a href="global.html#updateLastSeen">updateLastSeen</a></li><li><a href="global.html#validateChatAccess">validateChatAccess</a></li><li><a href="global.html#validateMessageAccess">validateMessageAccess</a></li><li><a href="global.html#verifyDriverDocuments">verifyDriverDocuments</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 08 2025 12:10:00 GMT-0500 (hora estándar de Perú)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

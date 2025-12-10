@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/wallet_service.dart';
 import '../widgets/recharge_dialog.dart';
+import 'withdrawal_screen.dart';
 
 class MyWalletScreen extends StatefulWidget {
   const MyWalletScreen({super.key});
@@ -179,21 +180,48 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _showRechargeDialog,
-                    icon: const Icon(Icons.add_circle, color: Colors.white),
-                    label: const Text('RECARGAR SALDO',
-                        style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple.shade600,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _showRechargeDialog,
+                        icon: const Icon(Icons.add_circle, color: Colors.white),
+                        label: const Text('RECARGAR',
+                            style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple.shade600,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const WithdrawalScreen()),
+                          );
+                        },
+                        icon: const Icon(Icons.money_off, color: Colors.purple),
+                        label: const Text('RETIRAR',
+                            style: TextStyle(color: Colors.purple)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          side: BorderSide(color: Colors.purple.shade600),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 32),
                 const Text(

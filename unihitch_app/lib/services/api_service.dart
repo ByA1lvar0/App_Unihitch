@@ -140,9 +140,13 @@ class ApiService {
     required int asientosDisponibles,
     bool? aceptaEfectivo,
   }) async {
+    final token = await getToken();
     final response = await http.post(
       Uri.parse('${Config.apiUrl}/viajes'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
       body: jsonEncode({
         'id_conductor': idConductor,
         'origen': origen,
@@ -166,9 +170,13 @@ class ApiService {
     required int idViaje,
     required int idPasajero,
   }) async {
+    final token = await getToken();
     final response = await http.post(
       Uri.parse('${Config.apiUrl}/reservas'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
       body: jsonEncode({
         'id_viaje': idViaje,
         'id_pasajero': idPasajero,
@@ -317,8 +325,13 @@ class ApiService {
 
   // OBTENER MIS VIAJES (COMO CONDUCTOR)
   static Future<List<dynamic>> getMisViajes(int userId) async {
+    final token = await getToken();
     final response = await http.get(
       Uri.parse('${Config.apiUrl}/viajes/conductor/$userId'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
     );
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -336,6 +349,28 @@ class ApiService {
       return jsonDecode(response.body);
     } else {
       return [];
+    }
+  }
+
+  // CANCELAR RESERVA
+  static Future<Map<String, dynamic>> cancelReservation({
+    required int reservationId,
+    required int userId,
+  }) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('${Config.apiUrl}/reservas/$reservationId/cancelar'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'userId': userId}),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception(jsonDecode(response.body)['error']);
     }
   }
 
@@ -541,6 +576,42 @@ class ApiService {
     }
   }
 
+  // HABILITAR/INHABILITAR USUARIO
+  static Future<void> toggleUserStatus({
+    required int userId,
+    required bool activo,
+  }) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('${Config.apiUrl}/admin/users/$userId/toggle-status'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'activo': activo}),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Error al cambiar estado del usuario');
+    }
+  }
+
+  // OBTENER TODOS LOS VIAJES (ADMIN)
+  static Future<List<dynamic>> getAdminTrips() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/admin/trips'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener viajes');
+    }
+  }
+
   // CREAR GRUPO DE CARPOOLING
   static Future<void> createCarpoolingGroup({
     required int organizadorId,
@@ -742,6 +813,22 @@ class ApiService {
     }
   }
 
+  // MARCAR TODAS LAS NOTIFICACIONES COMO LEIDAS
+  static Future<void> markAllNotificationsAsRead(int userId) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse('${Config.apiUrl}/notifications/$userId/read-all'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Error al marcar notificaciones como leídas');
+    }
+  }
+
   // ENVIAR ALERTA DE EMERGENCIA
   static Future<void> sendEmergencyLocation({
     required int userId,
@@ -924,6 +1011,76 @@ class ApiService {
     }
   }
 
+  // ==================== ADMIN DOCUMENT MANAGEMENT ====================
+
+  // OBTENER DOCUMENTOS PENDIENTES (ADMIN)
+  static Future<List<dynamic>> getPendingDocuments() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/documentos-conductor/admin/pending'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener documentos pendientes');
+    }
+  }
+
+  // APROBAR DOCUMENTO (ADMIN)
+  static Future<void> approveDocument({
+    required int documentId,
+    required int adminId,
+  }) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse(
+          '${Config.apiUrl}/documentos-conductor/admin/$documentId/approve'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'id_revisor': adminId}),
+    );
+
+    if (response.statusCode != 200) {
+      final error =
+          jsonDecode(response.body)['error'] ?? 'Error al aprobar documento';
+      throw Exception(error);
+    }
+  }
+
+  // RECHAZAR DOCUMENTO (ADMIN)
+  static Future<void> rejectDocument({
+    required int documentId,
+    required int adminId,
+    required String motivo,
+  }) async {
+    final token = await getToken();
+    final response = await http.put(
+      Uri.parse(
+          '${Config.apiUrl}/documentos-conductor/admin/$documentId/reject'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'id_revisor': adminId,
+        'motivo_rechazo': motivo,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      final error =
+          jsonDecode(response.body)['error'] ?? 'Error al rechazar documento';
+      throw Exception(error);
+    }
+  }
+
   // DETECTAR UNIVERSIDAD POR CORREO
   static Future<Map<String, dynamic>> detectUniversityByEmail(
       String email) async {
@@ -941,6 +1098,24 @@ class ApiService {
       }
     } catch (e) {
       return {'detected': false};
+    }
+  }
+
+  // OBTENER ESTADÍSTICAS DASHBOARD ADMIN
+  static Future<Map<String, dynamic>> getAdminDashboardStats() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${Config.apiUrl}/admin/dashboard-stats'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Error al obtener estadísticas del dashboard');
     }
   }
 }

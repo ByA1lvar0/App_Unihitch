@@ -22,7 +22,7 @@ const createReservation = async (req, res) => {
 
         // Obtener información del viaje
         const viaje = await client.query(
-            'SELECT v.*, v.id_conductor, v.precio, v.asientos_disponibles, v.acepta_efectivo FROM viaje v WHERE v.id = $1',
+            'SELECT v.*, v.id_conductor, v.precio, v.asientos_disponibles FROM viaje v WHERE v.id = $1',
             [id_viaje]
         );
 
@@ -51,11 +51,7 @@ const createReservation = async (req, res) => {
         const metodoPagoFinal = metodo_pago || 'WALLET';
 
         if (metodoPagoFinal === 'EFECTIVO') {
-            // Validar que el viaje acepte efectivo
-            if (!viajeData.acepta_efectivo) {
-                await client.query('ROLLBACK');
-                return res.status(400).json({ error: 'Este viaje no acepta pagos en efectivo' });
-            }
+            // Permitir pago en efectivo para todos los viajes
             // No descontamos nada del wallet
         } else {
             // PAGO CON WALLET

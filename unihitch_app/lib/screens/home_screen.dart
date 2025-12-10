@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   Map<String, dynamic>? _user;
   List<dynamic> _viajes = [];
+  Map<int, int> _userReservations = {}; // Map tripID -> reservationID
   bool _isLoading = true;
   Position? _currentPosition;
   String _locationText = 'Buscando ubicación...';
@@ -55,8 +56,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _startNotificationPolling() {
     _checkNotifications(); // Check immediately
-    _notificationTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    _notificationTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       _checkNotifications();
+      // Poll trips occasionally to keep feed fresh
+      if (timer.tick % 3 == 0) {
+        // Every 30 seconds
+        _loadData(refreshOnly: true);
+      }
     });
   }
 
@@ -64,13 +70,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_user == null) return;
     try {
       final notifications = await ApiService.getNotifications(_user!['id']);
-      // Simple logic: if count increases, we have new notifications
-      // In a real app, we would check IDs or 'read' status
-      int currentCount = notifications.length;
+      // Filter for unread notifications
+      final unreadCount =
+          notifications.where((n) => n['leido'] == false).length;
+      final currentCount = notifications.length;
 
       if (mounted) {
         setState(() {
-          _unreadNotificationsCount = currentCount;
+          _unreadNotificationsCount = unreadCount;
         });
 
         if (currentCount > _lastNotificationCount &&
@@ -152,20 +159,115 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadData() async {
-    final user = await ApiService.getUser();
-    final viajes = await ApiService.getViajes();
+  Future<void> _loadData({bool refreshOnly = false}) async {
+    try {
+      final user = await ApiService.getUser();
+      final viajes = await ApiService.getViajes();
 
-    setState(() {
-      _user = user;
-      _viajes = viajes;
-      _isLoading = false;
-    });
+      if (mounted) {
+        setState(() {
+          _user = user;
+          _viajes = viajes;
+          if (!refreshOnly) _isLoading = false;
+        });
+
+        if (user != null) {
+          await _loadUserReservations(user['id']);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading home data: $e');
+    }
+  }
+
+  Future<void> _loadUserReservations(int userId) async {
+    try {
+      final reservations = await ApiService.getMisReservas(userId);
+      if (mounted) {
+        setState(() {
+          _userReservations = {
+            for (var r in reservations)
+              if (r['estado'] != 'CANCELADA')
+                (r['id_viaje'] is int
+                    ? r['id_viaje']
+                    : int.tryParse(r['id_viaje'].toString()) ?? 0): r['id']
+          };
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading reservations: $e');
+    }
+  }
+
+  Future<void> _confirmarCancelacion(int reservationId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancelar Reserva'),
+        content:
+            const Text('¿Estás seguro de que deseas cancelar tu reserva?\n\n'
+                'El dinero será devuelto a tu billetera automáticamente.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('NO'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('SI, CANCELAR',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      _cancelarReserva(reservationId);
+    }
+  }
+
+  Future<void> _cancelarReserva(int reservationId) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final result = await ApiService.cancelReservation(
+        reservationId: reservationId,
+        userId: _user!['id'],
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading
+
+      // Show success
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reserva cancelada exitosamente. Reembolso procesado.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Refresh data
+      _loadData();
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cancelar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _reservarViaje(int idViaje) async {
     try {
-      await ApiService.createReserva(
+      final result = await ApiService.createReserva(
         idViaje: idViaje,
         idPasajero: _user!['id'],
       );
@@ -177,7 +279,13 @@ class _HomeScreenState extends State<HomeScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        _loadData(); // Recargar viajes
+        // Actualizar estado local inmediatamente
+        if (result['id'] != null) {
+          setState(() {
+            _userReservations[idViaje] = result['id'];
+          });
+        }
+        _loadData(); // Recargar datos completo en segundo plano
       }
     } catch (e) {
       if (mounted) {
@@ -355,6 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   MarkerLayer(
                     markers: [
+                      // Marcador de ubicación del usuario
                       Marker(
                         point: latlng.LatLng(
                           _currentPosition!.latitude,
@@ -368,6 +477,76 @@ class _HomeScreenState extends State<HomeScreen> {
                           size: 40,
                         ),
                       ),
+                      // Marcadores de viajes disponibles
+                      ..._viajes.take(5).map((viaje) {
+                        // Generar coordenadas aleatorias cerca del usuario
+                        // En producción, esto vendría de la base de datos
+                        final random = (viaje['id'] % 100) / 1000;
+                        return Marker(
+                          point: latlng.LatLng(
+                            _currentPosition!.latitude + random,
+                            _currentPosition!.longitude + random,
+                          ),
+                          width: 50,
+                          height: 50,
+                          child: GestureDetector(
+                            onTap: () {
+                              // Mostrar información del viaje
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: Text(viaje['conductor_nombre']),
+                                  content: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                          '${viaje['origen']} → ${viaje['destino']}'),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                          'Precio: \$${viaje['precio'] ?? viaje['costo']}'),
+                                      Text(
+                                          'Asientos: ${viaje['asientos_disponibles']}'),
+                                    ],
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Cerrar'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        _reservarViaje(viaje['id']);
+                                      },
+                                      child: const Text('Reservar'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade600,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.3),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.directions_car,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ],
                   ),
                 ],
@@ -757,7 +936,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          '\$${viaje['costo']}',
+                          '\$${viaje['precio']}',
                           style: TextStyle(
                             color: Colors.green.shade700,
                             fontWeight: FontWeight.bold,
@@ -769,25 +948,75 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => _reservarViaje(viaje['id']),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade600,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        'Reservar',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
+                    child: _buildReservationButton(viaje),
                   ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildReservationButton(Map<String, dynamic> viaje) {
+    // Si soy el conductor, mostrar info de pasajeros
+    if (_user != null && viaje['id_conductor'] == _user!['id']) {
+      final asientosDisponibles = viaje['asientos_disponibles'] as int;
+      // Asumimos que asientos_totales está en el viaje o calculamos (disponibles + reservados)
+      // Si no tenemos asientos_totales, podemos mostrar solo disponibles
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Text(
+          'Tu viaje: $asientosDisponibles asientos disponibles',
+          style: TextStyle(
+            color: Colors.grey.shade800,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+
+    final tripId = viaje['id'];
+    // Asegurar que tripId sea int
+    final tripIdInt =
+        tripId is int ? tripId : int.tryParse(tripId.toString()) ?? 0;
+    final isReserved = _userReservations.containsKey(tripIdInt);
+
+    if (isReserved) {
+      final reservationId = _userReservations[tripIdInt]!;
+      return ElevatedButton(
+        onPressed: () => _confirmarCancelacion(reservationId),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red.shade600,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: const Text(
+          'CANCELAR RESERVA',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+
+    return ElevatedButton(
+      onPressed: () => _reservarViaje(tripIdInt),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue.shade600,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      child: const Text(
+        'Reservar',
+        style: TextStyle(color: Colors.white),
       ),
     );
   }
